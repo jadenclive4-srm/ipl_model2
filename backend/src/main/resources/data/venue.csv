@@ -1,0 +1,14 @@
+stadium,city,pitch_type,avg_score,chasing_win_pct,dew_factor,boundary_size
+M Chinnaswamy Stadium,Bengaluru,batting,185,65,high,small
+Wankhede Stadium,Mumbai,batting,180,62,high,small
+Eden Gardens,Kolkata,balanced,175,55,medium,medium
+MA Chidambaram Stadium,Chennai,spin,165,45,low,large
+Arun Jaitley Stadium,Delhi,spin,170,48,medium,small
+Narendra Modi Stadium,Ahmedabad,balanced,175,52,medium,large
+Rajiv Gandhi International Stadium,Hyderabad,batting,180,60,high,medium
+Ekana Cricket Stadium,Lucknow,bowling,160,42,low,large
+Sawai Mansingh Stadium,Jaipur,balanced,170,50,medium,large
+Maharaja Yadavindra Singh Stadium,Mullanpur,balanced,175,52,medium,medium
+Barsapara Cricket Stadium,Guwahati,batting,185,63,high,small
+HPCA Stadium,Dharamshala,pace,170,55,low,large
+Shaheed Veer Narayan Singh Stadium,Raipur,balanced,175,54,medium,medium

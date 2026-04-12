@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  .card {
+    @apply bg-spotify-surface rounded-lg border border-spotify-surfaceLight shadow-lg;
+  }
+  
+  .card-hover {
+    @apply transition-all duration-200 hover:border-spotify-green/30 hover:shadow-xl hover:shadow-spotify-green/5;
+  }
+}
