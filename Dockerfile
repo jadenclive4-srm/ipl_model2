@@ -15,5 +15,6 @@ WORKDIR /app
 # copy built jar
 COPY --from=build /app/backend/target/*.jar app.jar
 
-EXPOSE 8081
+EXPOSE 8080
+#EXPOSE 8081
 ENTRYPOINT ["sh","-c","java -jar app.jar --server.port=$PORT"]
