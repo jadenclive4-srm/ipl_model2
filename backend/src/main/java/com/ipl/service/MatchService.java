@@ -63,25 +63,82 @@ public class MatchService {
     }
     
     public Optional<Match> getTodayMatch() {
+        return getTodayMatch(true, true);
+    }
+    
+    public Optional<Match> getTodayMatch(boolean includeFutureFallback) {
+        return getTodayMatch(includeFutureFallback, true);
+    }
+    
+    private static final java.time.ZoneId IST_ZONE = java.time.ZoneId.of("Asia/Kolkata");
+    
+    public Optional<Match> getTodayMatch(boolean includeFutureFallback, boolean includeCompletedToday) {
         long now = System.currentTimeMillis();
-        long startOfToday = java.time.LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
+        
+        java.time.LocalDate todayInIST = java.time.LocalDate.now(IST_ZONE);
+        long startOfToday = todayInIST.atStartOfDay(IST_ZONE).toInstant().toEpochMilli();
+        long endOfToday = todayInIST.plusDays(1).atStartOfDay(IST_ZONE).toInstant().toEpochMilli();
         
         List<Match> liveMatches = matchRepository.findByMatchStatus("LIVE");
-        for (Match m : liveMatches) {
-            if (m.getMatchDate() >= startOfToday) {
-                return Optional.of(m);
+        if (!liveMatches.isEmpty()) {
+            for (Match m : liveMatches) {
+                if (m.getMatchDate() >= startOfToday && m.getMatchDate() < endOfToday) {
+                    return Optional.of(m);
+                }
             }
-        }
-        
-        List<Match> upcomingMatches = matchRepository.findUpcomingMatches(now);
-        if (!upcomingMatches.isEmpty()) {
-            return Optional.of(upcomingMatches.get(0));
+            return Optional.of(liveMatches.get(0));
         }
         
         List<Match> scheduledMatches = matchRepository.findByMatchStatus("SCHEDULED");
+        List<Match> upcomingMatches = matchRepository.findByMatchStatus("UPCOMING");
+        
+        Match todayScheduled = null;
+        Match earliestFuture = null;
+        
         for (Match m : scheduledMatches) {
-            if (m.getMatchDate() >= startOfToday) {
-                return Optional.of(m);
+            if (m.getMatchDate() >= startOfToday && m.getMatchDate() < endOfToday) {
+                long predictionCloseTime = m.getMatchDate() - (30 * 60 * 1000);
+                if (now < predictionCloseTime) {
+                    if (todayScheduled == null || m.getMatchDate() < todayScheduled.getMatchDate()) {
+                        todayScheduled = m;
+                    }
+                }
+            } else if (m.getMatchDate() >= now) {
+                if (earliestFuture == null || m.getMatchDate() < earliestFuture.getMatchDate()) {
+                    earliestFuture = m;
+                }
+            }
+        }
+        
+        for (Match m : upcomingMatches) {
+            if (m.getMatchDate() >= startOfToday && m.getMatchDate() < endOfToday) {
+                long predictionCloseTime = m.getMatchDate() - (30 * 60 * 1000);
+                if (now < predictionCloseTime) {
+                    if (todayScheduled == null || m.getMatchDate() < todayScheduled.getMatchDate()) {
+                        todayScheduled = m;
+                    }
+                }
+            } else if (m.getMatchDate() >= now) {
+                if (earliestFuture == null || m.getMatchDate() < earliestFuture.getMatchDate()) {
+                    earliestFuture = m;
+                }
+            }
+        }
+        
+        if (todayScheduled != null) {
+            return Optional.of(todayScheduled);
+        }
+        
+        if (includeFutureFallback && earliestFuture != null) {
+            return Optional.of(earliestFuture);
+        }
+        
+        if (includeCompletedToday) {
+            List<Match> completedMatches = matchRepository.findByMatchStatus("COMPLETED");
+            for (Match m : completedMatches) {
+                if (m.getMatchDate() >= startOfToday && m.getMatchDate() < endOfToday) {
+                    return Optional.of(m);
+                }
             }
         }
         
@@ -224,7 +281,7 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
                 String matchType = "LEAGUE";
 
                 LocalDateTime dateTime = LocalDateTime.parse(dateStr + " " + timeStr, dateFormatter);
-                long matchDate = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long matchDate = dateTime.atZone(IST_ZONE).toInstant().toEpochMilli();
 
                 Long homeTeamId = getTeamIdByName(homeTeamName);
                 Long awayTeamId = getTeamIdByName(awayTeamName);
@@ -234,7 +291,7 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
         }
     }
     
-    @Transactional
+@Transactional
     public void importMatchesFromExcel(String filePath) throws IOException, CsvException {
         try (CSVReader reader = new CSVReader(new FileReader(filePath))) {
             List<String[]> rows = reader.readAll();
@@ -253,12 +310,12 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
                 String matchType = "LEAGUE";
 
                 LocalDateTime dateTime = LocalDateTime.parse(dateStr + " " + timeStr, dateFormatter);
-                long matchDate = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                long matchDate = dateTime.atZone(IST_ZONE).toInstant().toEpochMilli();
 
                 Long homeTeamId = getTeamIdByName(homeTeamName);
                 Long awayTeamId = getTeamIdByName(awayTeamName);
 
-createMatch(homeTeamId, awayTeamId, venue, matchDate, matchNumber, matchType);
+                createMatch(homeTeamId, awayTeamId, venue, matchDate, matchNumber, matchType);
             }
         }
     }
@@ -288,7 +345,7 @@ createMatch(homeTeamId, awayTeamId, venue, matchDate, matchNumber, matchType);
                     
                     DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("M/d/yyyy H:mm");
                     LocalDateTime dateTime = LocalDateTime.parse(dateStr + " " + timeStr, dateFormatter);
-                    long matchDate = dateTime.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+                    long matchDate = dateTime.atZone(IST_ZONE).toInstant().toEpochMilli();
                     
                     Long homeTeamId = getTeamIdByName(homeTeamName);
                     Long awayTeamId = getTeamIdByName(awayTeamName);

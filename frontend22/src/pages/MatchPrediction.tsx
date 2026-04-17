@@ -53,6 +53,13 @@ const MatchPrediction: React.FC = () => {
         } catch {
           setExistingPrediction(null);
         }
+
+        try {
+          const quizStatus = await apiService.getQuizStatus(user.id, parseInt(matchId));
+          setQuizSubmitted(quizStatus.submitted);
+        } catch {
+          setQuizSubmitted(false);
+        }
       }
 
       if (matchData.homeTeamId && matchData.awayTeamId && matchData.homeTeamName && matchData.awayTeamName) {
@@ -170,7 +177,9 @@ const MatchPrediction: React.FC = () => {
   const isUpcoming = match.matchStatus === 'UPCOMING' || match.matchStatus === 'SCHEDULED';
   const isLive = match.matchStatus === 'LIVE';
   const isCompleted = match.matchStatus === 'COMPLETED';
-  const isPredictionOpen = !isCompleted && !isLive;
+  const now = Date.now();
+  const predictionCloseTime = match.matchDate - (30 * 60 * 1000);
+  const isPredictionOpen = !isCompleted && !isLive && now < predictionCloseTime;
   const hasPredicted = existingPrediction !== null && existingPrediction.predictedWinnerId !== null;
   
   const matchDate = new Date(match.matchDate);

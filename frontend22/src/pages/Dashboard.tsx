@@ -34,7 +34,60 @@ const Dashboard: React.FC = () => {
         user ? apiService.getUserPredictions(user.id) : Promise.resolve([]),
         user ? apiService.getUserPoints(user.id).catch(() => 0) : Promise.resolve(0),
       ]);
-      setTodayMatch(todayData);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const now = Date.now();
+      
+      const findMatchForToday = (matches: Match[]): Match | null => {
+        let todayMatch: Match | null = null;
+        let earliestFuture: Match | null = null;
+        
+        for (const m of matches) {
+          const matchDate = new Date(m.matchDate);
+          const predictionCloseTime = matchDate.getTime() - (30 * 60 * 1000);
+          
+          if (matchDate >= today && matchDate < tomorrow) {
+            if (m.matchStatus !== 'COMPLETED' && now < predictionCloseTime) {
+              if (!todayMatch || matchDate.getTime() < new Date(todayMatch.matchDate).getTime()) {
+                todayMatch = m;
+              }
+            } else if (!todayMatch) {
+              todayMatch = m;
+            }
+          } else if (matchDate.getTime() >= now && m.matchStatus !== 'COMPLETED') {
+            if (!earliestFuture || matchDate.getTime() < new Date(earliestFuture.matchDate).getTime()) {
+              earliestFuture = m;
+            }
+          }
+        }
+        
+        return todayMatch || earliestFuture;
+      };
+      
+      let matchForToday: Match | null = null;
+      
+      if (todayMatch) {
+        const currentMatchInAllMatches = allMatchesData?.find(m => m.id === todayMatch.id);
+        const currentMatchDate = currentMatchInAllMatches ? new Date(currentMatchInAllMatches.matchDate) : new Date(todayMatch.matchDate);
+        const isTodayMatch = currentMatchDate >= today && currentMatchDate < tomorrow;
+        const currentMatchStillActive = currentMatchDate.getTime() > now;
+        
+        if (isTodayMatch) {
+          matchForToday = todayMatch;
+        } else if (!currentMatchStillActive) {
+          matchForToday = findMatchForToday(allMatchesData || []);
+        } else {
+          matchForToday = todayMatch;
+        }
+      } else {
+        matchForToday = findMatchForToday(allMatchesData || []);
+      }
+      
+      setTodayMatch(matchForToday);
       setUpcomingMatches(upcomingData);
       setAllMatches(allMatchesData);
       setPredictions(predictionsData);

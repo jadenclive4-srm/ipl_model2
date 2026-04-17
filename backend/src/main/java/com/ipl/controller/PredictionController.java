@@ -2,9 +2,13 @@ package com.ipl.controller;
 
 import com.ipl.dto.PredictionDTO;
 import com.ipl.dto.UserPredictionDTO;
+import com.ipl.model.Match;
 import com.ipl.model.Prediction;
+import com.ipl.model.QuizAnswer;
 import com.ipl.model.User;
 import com.ipl.model.mongo.UserPrediction;
+import com.ipl.repository.MatchRepository;
+import com.ipl.repository.QuizAnswerRepository;
 import com.ipl.repository.UserRepository;
 import com.ipl.repository.mongo.UserPredictionRepository;
 import com.ipl.service.PredictionService;
@@ -25,6 +29,8 @@ public class PredictionController {
     private final PredictionService predictionService;
     private final UserPredictionRepository userPredictionRepository;
     private final UserRepository userRepository;
+    private final MatchRepository matchRepository;
+    private final QuizAnswerRepository quizAnswerRepository;
     
     @PostMapping
     public ResponseEntity<PredictionDTO> createPrediction(@RequestBody PredictionDTO predictionDTO) {
@@ -95,6 +101,27 @@ public class PredictionController {
     
     @PostMapping("/quiz")
     public ResponseEntity<Map<String, String>> submitQuizPrediction(@RequestBody com.ipl.dto.QuizPredictionDTO quizDTO) {
+        Match match = matchRepository.findById(quizDTO.getMatchId())
+                .orElseThrow(() -> new RuntimeException("Match not found"));
+        
+        long matchDate = match.getMatchDate();
+        java.time.ZoneId istZone = java.time.ZoneId.of("Asia/Kolkata");
+        java.time.LocalDate matchDay = java.time.Instant.ofEpochMilli(matchDate).atZone(istZone).toLocalDate();
+        java.time.LocalDate today = java.time.LocalDate.now(istZone);
+        
+        if (!matchDay.equals(today)) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Quiz is only available on the day of the match");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
+        List<QuizAnswer> existingAnswers = quizAnswerRepository.findByUserIdAndMatchId(quizDTO.getUserId(), quizDTO.getMatchId());
+        if (!existingAnswers.isEmpty()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "You have already submitted quiz answers for this match");
+            return ResponseEntity.badRequest().body(error);
+        }
+        
         System.out.println("Quiz DTO received: userId=" + quizDTO.getUserId() + ", matchId=" + quizDTO.getMatchId() + ", answers=" + quizDTO.getAnswers());
         predictionService.saveQuizPrediction(
                 quizDTO.getUserId(),
@@ -104,6 +131,16 @@ public class PredictionController {
         Map<String, String> response = new HashMap<>();
         response.put("message", "Quiz submitted successfully!");
         return ResponseEntity.ok(response);
+    }
+    
+    @GetMapping("/quiz/status")
+    public ResponseEntity<Map<String, Boolean>> getQuizStatus(
+            @RequestParam Long userId,
+            @RequestParam Long matchId) {
+        List<QuizAnswer> existingAnswers = quizAnswerRepository.findByUserIdAndMatchId(userId, matchId);
+        Map<String, Boolean> result = new HashMap<>();
+        result.put("submitted", !existingAnswers.isEmpty());
+        return ResponseEntity.ok(result);
     }
     
     @PostMapping("/delete/{matchId}")

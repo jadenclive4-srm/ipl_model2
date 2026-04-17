@@ -19,7 +19,7 @@ import {
   UserPredictionSummary,
 } from '../types/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8081';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 class ApiService {
   private getAuthHeaders(): HeadersInit {
@@ -77,7 +77,13 @@ class ApiService {
   }
 
   async getTodayMatch(): Promise<Match> {
-    return this.request<Match>('/api/matches/today');
+    const timestamp = Date.now();
+    return this.request<Match>(`/api/matches/today?_t=${timestamp}`);
+  }
+
+  async getTodayMatchForEvaluation(): Promise<Match> {
+    const timestamp = Date.now();
+    return this.request<Match>(`/api/matches/today/for-evaluation?_t=${timestamp}`);
   }
 
   async getUpcomingMatches(): Promise<Match[]> {
@@ -274,6 +280,10 @@ async getLeaderboard(): Promise<User[]> {
       method: 'POST',
       body: JSON.stringify(request),
     });
+  }
+
+  async getQuizStatus(userId: number, matchId: number): Promise<{ submitted: boolean }> {
+    return this.request<{ submitted: boolean }>(`/api/predictions/quiz/status?userId=${userId}&matchId=${matchId}`);
   }
 
   async evaluatePredictions(matchId: number): Promise<{ message: string }> {

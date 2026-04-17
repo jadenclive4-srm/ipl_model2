@@ -15,10 +15,3 @@ INSERT INTO teams (team_name, short_name, home_city, stadium, logo_url, team_col
 ('Gujarat Titans', 'GT', 'Ahmedabad', 'Narendra Modi Stadium', '/logos/gt.webp', '#1D3F6B', 0, 0, 0, 0, 0);
 
 -- Insert sample matches (schedule for 2026 IPL season)
-INSERT INTO matches (home_team_id, away_team_id, match_date, venue, match_number, match_status, match_type, home_team_score, away_team_score, home_team_overs, away_team_overs, result, home_win_probability, away_win_probability, match_duration) VALUES
-(1, 2, 1744352400000, 'Wankhede Stadium', 1, 'SCHEDULED', 'LEAGUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 240),
-(3, 4, 1744438800000, 'Eden Gardens', 2, 'SCHEDULED', 'LEAGUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 240),
-(5, 6, 1744525200000, 'Arun Jaitley Stadium', 3, 'SCHEDULED', 'LEAGUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 240),
-(7, 8, 1744611600000, 'Sawai Mansingh Stadium', 4, 'SCHEDULED', 'LEAGUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 240),
-(1, 4, 1744698000000, 'Wankhede Stadium', 5, 'SCHEDULED', 'LEAGUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 240),
-(2, 3, 1744784400000, 'MA Chidambaram Stadium', 6, 'SCHEDULED', 'LEAGUE', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 240);

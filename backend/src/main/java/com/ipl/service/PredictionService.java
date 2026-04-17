@@ -57,6 +57,11 @@ public class PredictionService {
             throw new RuntimeException("Cannot make predictions for a completed match");
         }
         
+        long predictionCloseTime = match.getMatchDate() - (30 * 60 * 1000);
+        if (System.currentTimeMillis() >= predictionCloseTime) {
+            throw new RuntimeException("Prediction window has closed for this match");
+        }
+        
         Team predictedWinner = null;
         if (predictedWinnerId != null) {
             predictedWinner = teamRepository.findById(predictedWinnerId)

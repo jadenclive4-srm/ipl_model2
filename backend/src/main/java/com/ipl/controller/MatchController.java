@@ -45,6 +45,20 @@ public class MatchController {
                 .orElse(ResponseEntity.notFound().build());
     }
     
+    @GetMapping("/today/for-evaluation")
+    public ResponseEntity<MatchDTO> getTodayMatchForEvaluation() {
+        return matchService.getTodayMatch(false, false)
+                .map(match -> ResponseEntity.ok(convertToDTO(match)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+    
+    @GetMapping("/today/for-dashboard")
+    public ResponseEntity<MatchDTO> getTodayMatchForDashboard() {
+        return matchService.getTodayMatch(false, false)
+                .map(match -> ResponseEntity.ok(convertToDTO(match)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+    
     @GetMapping("/upcoming")
     public ResponseEntity<List<MatchDTO>> getUpcomingMatches() {
         List<MatchDTO> matches = matchService.getUpcomingMatches().stream()

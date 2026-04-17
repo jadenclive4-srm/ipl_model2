@@ -13,7 +13,7 @@ public interface MatchRepository extends JpaRepository<Match, Long> {
     @Query("SELECT m FROM Match m ORDER BY m.matchNumber ASC")
     List<Match> findAllOrderedByMatchNumber();
 
-    @Query("SELECT m FROM Match m WHERE m.matchDate >= :currentTime ORDER BY m.matchDate ASC")
+    @Query("SELECT m FROM Match m WHERE m.matchDate >= :currentTime AND m.matchStatus <> 'COMPLETED' ORDER BY m.matchDate ASC")
     List<Match> findUpcomingMatches(Long currentTime);
     
     @Query("SELECT m FROM Match m WHERE m.matchDate < :currentTime ORDER BY m.matchDate DESC")

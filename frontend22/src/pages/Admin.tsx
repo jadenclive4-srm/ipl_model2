@@ -57,10 +57,48 @@ const Admin: React.FC = () => {
 
   const loadTodayMatch = async () => {
     try {
-      const match = await apiService.getTodayMatch().catch(() => null);
-      setTodayMatch(match);
-      if (match) {
-        loadMatchData(match.id);
+      const allMatches = await apiService.getAllMatches().catch(() => []);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const now = Date.now();
+      
+      if (todayMatch) {
+        const currentMatchInAllMatches = allMatches.find(m => m.id === todayMatch.id);
+        if (currentMatchInAllMatches) {
+          const currentMatchDate = new Date(currentMatchInAllMatches.matchDate);
+          if (currentMatchDate >= today && currentMatchDate < tomorrow) {
+            setTodayMatch(currentMatchInAllMatches);
+            loadMatchData(currentMatchInAllMatches.id);
+            return;
+          }
+        }
+      }
+      
+      let todayMatchData = null;
+      
+      for (const m of allMatches) {
+        const matchDate = new Date(m.matchDate);
+        if (matchDate >= today && matchDate < tomorrow) {
+          todayMatchData = m;
+          break;
+        }
+      }
+      
+      if (!todayMatchData && allMatches.length > 0) {
+        for (const m of allMatches) {
+          const matchDate = new Date(m.matchDate);
+          if (matchDate.getTime() >= now) {
+            todayMatchData = m;
+            break;
+          }
+        }
+      }
+      
+      setTodayMatch(todayMatchData);
+      if (todayMatchData) {
+        loadMatchData(todayMatchData.id);
       }
     } catch (error) {
       console.error('Error loading today match:', error);
@@ -165,12 +203,13 @@ const Admin: React.FC = () => {
           ? todayMatch.homeTeamName 
           : todayMatch.awayTeamName,
       });
-      setImportStatus('Match winner set successfully');
+      setImportStatus('Match winner set successfully. Predictions evaluated.');
       
       await apiService.evaluatePredictions(todayMatch.id);
-      setImportStatus(prev => prev + '. Predictions evaluated.');
       
-      loadTodayMatch();
+      const updatedMatch = await apiService.getMatchById(todayMatch.id);
+      setTodayMatch(updatedMatch);
+      loadMatchData(updatedMatch.id);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Failed to set winner');
     } finally {
