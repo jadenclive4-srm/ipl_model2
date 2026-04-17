@@ -114,7 +114,7 @@ public class QuestionService {
             result.add(answer);
             
             UserResponse.QuestionResponse qr = new UserResponse.QuestionResponse();
-            qr.setQuestionId(questionIds.get(i));
+            qr.setQuestionId(String.valueOf(questionIds.get(i)));
             qr.setSelectedOption(answers.get(i));
             qr.setIsCorrect(answer.getIsCorrect());
             qr.setPointsEarned(answer.getPointsEarned());

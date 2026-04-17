@@ -70,7 +70,7 @@ public class UserController {
 dto.setId(user.getId() != null ? user.getId().longValue() : null);        dto.setUsername(user.getUsername());
         dto.setEmail(user.getEmail());
         dto.setFullName(user.getFullName());
-        dto.setPoints(user.getPoints());
+        dto.setPoints(user.getPoints() != null ? Long.valueOf(user.getPoints()) : null);
         dto.setRank(user.getRank());
         dto.setRole(user.getRole());
         dto.setCreatedAt(user.getCreatedAt());
