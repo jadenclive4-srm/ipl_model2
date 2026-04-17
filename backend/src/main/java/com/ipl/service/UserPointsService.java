@@ -57,14 +57,14 @@ public class UserPointsService {
                 newPoints.setUserId(user.getId());
                 newPoints.setUsername(user.getUsername());
                 newPoints.setFullName(user.getFullName());
-                newPoints.setTotalPoints(user.getPoints() != null ? user.getPoints() : 0L);
+                newPoints.setTotalPoints(user.getPoints() != null ? Long.valueOf(user.getPoints()) : 0L);
                 newPoints.setTotalPredictions(0);
                 newPoints.setCorrectPredictions(0);
                 newPoints.setLastUpdated(System.currentTimeMillis());
                 userPointsRepository.save(newPoints);
             } else {
                 UserPoints up = existing.get();
-                up.setTotalPoints(user.getPoints() != null ? user.getPoints() : 0L);
+                up.setTotalPoints(user.getPoints() != null ? Long.valueOf(user.getPoints()) : 0L);
                 userPointsRepository.save(up);
             }
         }
