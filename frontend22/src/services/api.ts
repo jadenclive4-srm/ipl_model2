@@ -19,7 +19,7 @@ import {
   UserPredictionSummary,
 } from '../types/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || '';
+const API_BASE_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
 
 class ApiService {
   private getAuthHeaders(): HeadersInit {
