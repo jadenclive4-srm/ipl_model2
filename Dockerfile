@@ -6,6 +6,9 @@ WORKDIR /app
 # copy everything first
 COPY . .
 
+# copy frontend build to static resources (so it gets packaged into the jar)
+COPY frontend22/build/. backend/src/main/resources/static/
+
 # build backend
 WORKDIR /app/backend
 RUN mvn clean package -DskipTests
@@ -16,11 +19,8 @@ FROM eclipse-temurin:17-jdk-alpine
 
 WORKDIR /app
 
-# copy backend jar
+# copy backend jar (contains static files)
 COPY --from=build /app/backend/target/*.jar app.jar
-
-# copy frontend build files
-COPY --from=build /app/frontend22/build ./frontend22/build
 
 EXPOSE 8080
 
