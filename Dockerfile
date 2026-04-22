@@ -6,9 +6,8 @@ WORKDIR /app
 # copy everything first
 COPY . .
 
-# build inside correct folder (ONLY if backend exists)
+# build backend
 WORKDIR /app/backend
-
 RUN mvn clean package -DskipTests
 
 
@@ -17,8 +16,11 @@ FROM eclipse-temurin:17-jdk-alpine
 
 WORKDIR /app
 
-# copy jar
+# copy backend jar
 COPY --from=build /app/backend/target/*.jar app.jar
+
+# copy frontend build files
+COPY --from=build /app/frontend22/build ./frontend22/build
 
 EXPOSE 8080
 
