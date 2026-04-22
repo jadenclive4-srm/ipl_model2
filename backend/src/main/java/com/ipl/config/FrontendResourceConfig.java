@@ -24,10 +24,8 @@ public class FrontendResourceConfig implements WebMvcConfigurer {
         
         registry.addResourceHandler("/asset-manifest.json")
                 .addResourceLocations("classpath:/static/");
-    }
-
-    @Override
-    public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addViewController("/").setViewName("forward:/static/index.html");
+        
+        registry.addResourceHandler("/index.html")
+                .addResourceLocations("classpath:/static/");
     }
 }
