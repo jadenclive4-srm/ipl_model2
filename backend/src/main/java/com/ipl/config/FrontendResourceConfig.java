@@ -11,23 +11,23 @@ public class FrontendResourceConfig implements WebMvcConfigurer {
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/static/**")
-                .addResourceLocations("classpath:/frontend22/build/static/");
+                .addResourceLocations("classpath:/static/static/");
         
         registry.addResourceHandler("/logos/**")
-                .addResourceLocations("classpath:/frontend22/build/logos/");
+                .addResourceLocations("classpath:/static/logos/");
         
         registry.addResourceHandler("/favicon.ico")
-                .addResourceLocations("classpath:/frontend22/build/favicon.ico");
+                .addResourceLocations("classpath:/static/");
         
         registry.addResourceHandler("/manifest.json")
-                .addResourceLocations("classpath:/frontend22/build/manifest.json");
+                .addResourceLocations("classpath:/static/");
         
         registry.addResourceHandler("/asset-manifest.json")
-                .addResourceLocations("classpath:/frontend22/build/asset-manifest.json");
+                .addResourceLocations("classpath:/static/");
     }
 
     @Override
     public void addViewControllers(ViewControllerRegistry registry) {
-        registry.addViewController("/").setViewName("forward:/frontend22/build/index.html");
+        registry.addViewController("/").setViewName("forward:/static/index.html");
     }
 }
