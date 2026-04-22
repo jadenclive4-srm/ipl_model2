@@ -1,5 +1,6 @@
 package com.ipl;
 
+import com.ipl.repository.mongo.UserMongoRepository;
 import com.ipl.service.MatchService;
 import com.ipl.service.UserService;
 import com.ipl.service.UserPointsService;
@@ -22,11 +23,14 @@ public class IplPredictorApplication implements CommandLineRunner {
     @Autowired
     private MatchService matchService;
 
-@Autowired
+    @Autowired
     private UserService userService;
     
     @Autowired
     private UserRepository userRepository;
+    
+    @Autowired
+    private UserMongoRepository userMongoRepository;
     
     @Autowired
     private UserPointsService userPointsService;
@@ -64,36 +68,21 @@ public class IplPredictorApplication implements CommandLineRunner {
             System.err.println("Failed to import venue stats: " + e.getMessage());
         }
 
+        // Test MongoDB connection
         try {
-            if (!userRepository.existsByUsername("admin")) {
-                userService.registerUser("admin", null, "admin@ipl.com", "admin123", "Admin User", "ADMIN");
-                System.out.println("Admin user created: admin / admin123");
-            }
-            if (!userRepository.existsByUsername("user")) {
-                userService.registerUser("user", null, "user@ipl.com", "user123", "Test User", "USER");
-                System.out.println("Test user created: user / user123");
-            }
-            if (!userRepository.existsByUsername("user1")) {
-                userService.registerUser("user1", null, "user1@ipl.com", "user123", "John Smith", "USER");
-                System.out.println("Test user created: user1 / user123");
-            }
-            if (!userRepository.existsByUsername("user2")) {
-                userService.registerUser("user2", null, "user2@ipl.com", "user123", "Sarah Johnson", "USER");
-                System.out.println("Test user created: user2 / user123");
-            }
-            if (!userRepository.existsByUsername("user3")) {
-                userService.registerUser("user3", null, "user3@ipl.com", "user123", "Mike Williams", "USER");
-                System.out.println("Test user created: user3 / user123");
-            }
-            if (!userRepository.existsByUsername("user4")) {
-                userService.registerUser("user4", null, "user4@ipl.com", "user123", "Emily Brown", "USER");
-                System.out.println("Test user created: user4 / user123");
-            }
-            if (!userRepository.existsByUsername("user5")) {
-                userService.registerUser("user5", null, "user5@ipl.com", "user123", "David Lee", "USER");
-                System.out.println("Test user created: user5 / user123");
-            }
-            
+            userMongoRepository.count();
+            System.out.println("✅ MongoDB connection successful (users collection accessible)");
+        } catch (Exception e) {
+            System.err.println("❌ MongoDB connection FAILED: " + e.getMessage());
+            System.err.println("   Users cannot register unless MongoDB is reachable.");
+            System.err.println("   Check: MongoDB Atlas IP whitelist, credentials, network.");
+        }
+
+try {
+            // Reset admin to ensure active and verified (bypasses OTP)
+            userService.resetAdminUser();
+
+            // Sync all real users to userPoints collection
             try {
                 userPointsService.syncAllUserPoints();
                 System.out.println("User points synced to MongoDB");

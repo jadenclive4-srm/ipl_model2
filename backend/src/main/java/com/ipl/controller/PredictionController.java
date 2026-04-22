@@ -4,13 +4,12 @@ import com.ipl.dto.PredictionDTO;
 import com.ipl.dto.UserPredictionDTO;
 import com.ipl.model.Match;
 import com.ipl.model.Prediction;
-import com.ipl.model.QuizAnswer;
 import com.ipl.model.User;
 import com.ipl.model.mongo.UserPrediction;
 import com.ipl.repository.MatchRepository;
-import com.ipl.repository.QuizAnswerRepository;
 import com.ipl.repository.UserRepository;
 import com.ipl.repository.mongo.UserPredictionRepository;
+import com.ipl.repository.mongo.UserResponseRepository;
 import com.ipl.service.PredictionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +29,7 @@ public class PredictionController {
     private final UserPredictionRepository userPredictionRepository;
     private final UserRepository userRepository;
     private final MatchRepository matchRepository;
-    private final QuizAnswerRepository quizAnswerRepository;
+    private final UserResponseRepository userResponseRepository;
     
     @PostMapping
     public ResponseEntity<PredictionDTO> createPrediction(@RequestBody PredictionDTO predictionDTO) {
@@ -115,8 +114,8 @@ public class PredictionController {
             return ResponseEntity.badRequest().body(error);
         }
         
-        List<QuizAnswer> existingAnswers = quizAnswerRepository.findByUserIdAndMatchId(quizDTO.getUserId(), quizDTO.getMatchId());
-        if (!existingAnswers.isEmpty()) {
+        // Check MongoDB for existing answers
+        if (userResponseRepository.existsByUserIdAndMatchId(quizDTO.getUserId(), quizDTO.getMatchId())) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "You have already submitted quiz answers for this match");
             return ResponseEntity.badRequest().body(error);
@@ -137,9 +136,9 @@ public class PredictionController {
     public ResponseEntity<Map<String, Boolean>> getQuizStatus(
             @RequestParam Long userId,
             @RequestParam Long matchId) {
-        List<QuizAnswer> existingAnswers = quizAnswerRepository.findByUserIdAndMatchId(userId, matchId);
+        boolean exists = userResponseRepository.existsByUserIdAndMatchId(userId, matchId);
         Map<String, Boolean> result = new HashMap<>();
-        result.put("submitted", !existingAnswers.isEmpty());
+        result.put("submitted", exists);
         return ResponseEntity.ok(result);
     }
     

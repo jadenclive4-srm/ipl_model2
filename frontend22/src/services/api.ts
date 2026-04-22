@@ -10,6 +10,7 @@ import {
   HeadToHead,
   AuthRequest,
   AuthResponse,
+  RegisterResponse,
   AIQueryRequest,
   AIResponse,
   PredictionRequest,
@@ -19,7 +20,7 @@ import {
   UserPredictionSummary,
 } from '../types/api';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' ? window.location.origin : '');
+const API_BASE_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
 
 class ApiService {
   private getAuthHeaders(): HeadersInit {
@@ -42,15 +43,41 @@ class ApiService {
     };
 
     const response = await fetch(url, config);
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    
+    if (response.ok) {
+      return response.json();
+    } else {
+      // Try to get error details from response
+      let errorMessage = `${response.status} ${response.statusText}`;
+      const contentType = response.headers.get('content-type');
+      
+      try {
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          console.error('API Error response:', { status: response.status, data: errorData });
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          } else if (errorData.message) {
+            errorMessage = errorData.message;
+          } else if (typeof errorData === 'string') {
+            errorMessage = errorData;
+          }
+        } else {
+          const text = await response.text();
+          console.error('API Error response (text):', { status: response.status, text });
+          if (text) errorMessage = text;
+        }
+      } catch (e) {
+        console.error('Failed to parse error response:', e);
+      }
+      
+      throw new Error(errorMessage);
     }
-    return response.json();
   }
 
-  // Auth endpoints
-  async register(authData: AuthRequest): Promise<AuthResponse> {
-    return this.request<AuthResponse>('/api/auth/register', {
+   // Auth endpoints
+  async register(authData: AuthRequest): Promise<RegisterResponse> {
+    return this.request<RegisterResponse>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(authData),
     });
@@ -65,6 +92,20 @@ class ApiService {
 
   async validateToken(): Promise<{ valid: boolean }> {
     return this.request<{ valid: boolean }>('/api/auth/validate');
+  }
+
+  async verifyOtp(email: string, otp: string): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/api/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    });
+  }
+
+  async resendOtp(email: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/api/auth/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   }
 
   // Match endpoints

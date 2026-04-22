@@ -64,6 +64,12 @@ public class LeaderboardController {
         return ResponseEntity.ok("User points synced");
     }
     
+    @PostMapping("/cleanup")
+    public ResponseEntity<String> cleanupTestUsers() {
+        userPointsService.cleanupAndSync();
+        return ResponseEntity.ok("Test users cleaned up and synced");
+    }
+    
     private UserDTO convertMongoPointsToDTO(UserPoints up) {
         UserDTO dto = new UserDTO();
         dto.setId(up.getUserId());

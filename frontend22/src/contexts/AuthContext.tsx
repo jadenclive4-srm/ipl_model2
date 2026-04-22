@@ -1,7 +1,7 @@
 // frontend22/src/contexts/AuthContext.tsx
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { User, AuthRequest } from '../types/api';
+import { User, AuthRequest, AuthResponse, RegisterResponse } from '../types/api';
 import { apiService } from '../services/api';
 
 interface AuthContextType {
@@ -9,8 +9,11 @@ interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (credentials: AuthRequest) => Promise<void>;
-  register: (userData: AuthRequest) => Promise<void>;
+  register: (userData: AuthRequest) => Promise<RegisterResponse>;
+  verifyOtpAndLogin: (email: string, otp: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<void>;
   logout: () => void;
+  setSession: (auth: AuthResponse) => void;
   isAuthenticated: boolean;
 }
 
@@ -69,7 +72,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, [validateToken]);
 
   const login = async (credentials: AuthRequest) => {
-    setIsLoading(true);
     try {
       const response = await apiService.login(credentials);
 
@@ -93,58 +95,75 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(userData);
     } catch (error) {
       throw error;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const register = async (userData: AuthRequest) => {
-    setIsLoading(true);
-    try {
-      const response = await apiService.register({ ...userData, role: userData.role || 'USER' });
+    const register = async (userData: AuthRequest): Promise<RegisterResponse> => {
+      try {
+        const response = await apiService.register({ ...userData, role: userData.role || 'USER' });
+        // Do NOT set session yet; user must verify OTP first
+        return response;
+      } catch (error) {
+        throw error;
+      }
+    };
 
-      // Store token and user data
-      localStorage.setItem('token', response.token);
-      const user: User = {
-        id: response.userId,
-        username: response.username,
-        email: response.email,
-        fullName: response.fullName || '',
-        points: 0,
-        rank: 0,
-        isActive: true,
-        role: response.role,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-      localStorage.setItem('user', JSON.stringify(user));
+   const logout = () => {
+     localStorage.removeItem('token');
+     localStorage.removeItem('user');
+     setToken(null);
+     setUser(null);
+     setIsLoading(false);
+   };
 
-      setToken(response.token);
-      setUser(user);
-    } catch (error) {
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
+   const setSession = (auth: AuthResponse) => {
+     const userData: User = {
+       id: auth.userId,
+       username: auth.username,
+       email: auth.email,
+       fullName: auth.fullName || '',
+       points: 0,
+       rank: 0,
+       isActive: true,
+       role: auth.role,
+       createdAt: Date.now(),
+       updatedAt: Date.now(),
+     };
+     localStorage.setItem('token', auth.token);
+     localStorage.setItem('user', JSON.stringify(userData));
+     setToken(auth.token);
+     setUser(userData);
+   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    setToken(null);
-    setUser(null);
-    setIsLoading(false);
-  };
+    const verifyOtpAndLogin = async (email: string, otp: string) => {
+      try {
+        const response = await apiService.verifyOtp(email, otp);
+        setSession(response);
+      } catch (error) {
+        throw error;
+      }
+    };
 
-  const value: AuthContextType = {
-    user,
-    token,
-    isLoading,
-    login,
-    register,
-    logout,
-    isAuthenticated: !!user && !!token,
-  };
+   const resendOtp = async (email: string) => {
+     try {
+       await apiService.resendOtp(email);
+     } catch (error) {
+       throw error;
+     }
+   };
+
+   const value: AuthContextType = {
+     user,
+     token,
+     isLoading,
+     login,
+     register,
+     verifyOtpAndLogin,
+     resendOtp,
+     logout,
+     setSession,
+     isAuthenticated: !!user && !!token,
+   };
 
   return (
     <AuthContext.Provider value={value}>

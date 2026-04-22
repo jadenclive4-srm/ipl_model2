@@ -31,7 +31,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Query("SELECT COUNT(u) FROM User u WHERE u.points > :points")
     Long countUsersWithMorePoints(Integer points);
     
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE User u SET u.points = u.points + :points WHERE u.id = :userId")
     void incrementPoints(Long userId, int points);
 }

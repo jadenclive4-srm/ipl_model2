@@ -11,6 +11,10 @@ const Leaderboard: React.FC = () => {
 
   useEffect(() => {
     loadLeaderboard();
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(loadLeaderboard, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadLeaderboard = async () => {

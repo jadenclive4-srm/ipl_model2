@@ -48,7 +48,7 @@ public class PredictionService {
             throw new RuntimeException("Prediction already exists for this match");
         }
         
-        User user = userRepository.findById(userId)
+        User user = userService.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new RuntimeException("Match not found"));
@@ -264,10 +264,13 @@ public class PredictionService {
         try {
             System.out.println("saveQuizPrediction called with: userId=" + userId + ", matchId=" + matchId + ", answers=" + answers);
             
-            User user = userRepository.findById(userId)
+            User user = userService.findById(userId)
                     .orElseThrow(() -> new RuntimeException("User not found"));
-            Match match = matchRepository.findById(matchId)
-                    .orElseThrow(() -> new RuntimeException("Match not found"));
+            
+            // Check if already submitted
+            if (userResponseRepository.existsByUserIdAndMatchId(userId, matchId)) {
+                throw new RuntimeException("You have already submitted quiz answers for this match");
+            }
             
             List<UserResponse.QuestionResponse> mongoResponses = new ArrayList<>();
             
@@ -281,17 +284,6 @@ public class PredictionService {
                 String answer = entry.getValue();
                 
                 System.out.println("Saving quiz answer - questionId: " + questionId + ", answer: " + answer);
-                
-                QuizAnswer quizAnswer = new QuizAnswer();
-                quizAnswer.setUser(user);
-                quizAnswer.setMatch(match);
-                quizAnswer.setQuestionId(questionId);
-                quizAnswer.setSelectedOption(answer);
-                quizAnswer.setIsCorrect(false);
-                quizAnswer.setPointsEarned(0);
-                quizAnswer.setCreatedAt(System.currentTimeMillis());
-                
-                quizAnswerRepository.save(quizAnswer);
                 
                 UserResponse.QuestionResponse qr = new UserResponse.QuestionResponse();
                 qr.setQuestionId(questionId);

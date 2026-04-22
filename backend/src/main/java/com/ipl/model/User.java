@@ -53,11 +53,14 @@ public class User implements UserDetails {
     @Column(name = "created_at")
     private Long createdAt;
     
-    @Column(name = "updated_at")
-    private Long updatedAt;
+     @Column(name = "updated_at")
+     private Long updatedAt;
 
-    @Override
-    public Collection<? extends GrantedAuthority> getAuthorities() {
+     @Column(name = "email_verified")
+     private Boolean emailVerified = false;
+
+     @Override
+     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + role));
     }
 

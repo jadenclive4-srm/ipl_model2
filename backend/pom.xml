@@ -64,6 +64,13 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- OkHttp for HTTP client (Resend API) -->
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.12.0</version>
+        </dependency>
+
         <!-- JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -111,13 +118,8 @@
             <version>5.7.1</version>
         </dependency>
         
-        <!-- OkHttp for HTTP client -->
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp</artifactId>
-            <version>4.12.0</version>
-        </dependency>
-        
+        <!-- Resend for email service - Using OkHttp directly, no SDK needed -->
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

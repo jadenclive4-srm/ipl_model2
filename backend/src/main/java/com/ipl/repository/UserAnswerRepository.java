@@ -16,7 +16,7 @@ public interface UserAnswerRepository extends JpaRepository<UserAnswer, Long> {
     @Query("SELECT ua FROM UserAnswer ua WHERE ua.user.id = :userId AND ua.question.match.id = :matchId")
     List<UserAnswer> findByUserIdAndMatchId(Long userId, Long matchId);
     
-    @Query("SELECT ua FROM UserAnswer ua WHERE ua.question.id = :questionId")
+    @Query("SELECT ua FROM UserAnswer ua JOIN FETCH ua.user WHERE ua.question.id = :questionId")
     List<UserAnswer> findByQuestionId(Long questionId);
     
     boolean existsByUserIdAndQuestionId(Long userId, Long questionId);

@@ -23,15 +23,39 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     
     @PostMapping("/register")
-    public ResponseEntity<AuthDTO> register(@RequestBody AuthDTO authDTO) {
-        User user = userService.registerUser(
-                authDTO.getUsername(),
-                authDTO.getUniqueUserId(),
-                authDTO.getEmail(),
-                authDTO.getPassword(),
-                authDTO.getFullName(),
-                authDTO.getRole()
-        );
+    public ResponseEntity<Map<String, String>> register(@RequestBody AuthDTO authDTO) {
+        try {
+            User user = userService.registerUser(
+                    authDTO.getUsername(),
+                    authDTO.getUniqueUserId(),
+                    authDTO.getEmail(),
+                    authDTO.getPassword(),
+                    authDTO.getFullName(),
+                    authDTO.getRole()
+            );
+            
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "OTP_SENT");
+            response.put("email", user.getEmail());
+            response.put("username", user.getUsername());
+            
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            System.err.println("REGISTRATION ERROR: " + e.getMessage());
+            throw e; // Re-throw for GlobalExceptionHandler
+        }
+    }
+    
+    @PostMapping("/verify-otp")
+    public ResponseEntity<AuthDTO> verifyOtp(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String otp = request.get("otp");
+        
+        if (email == null || otp == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        User user = userService.verifyOtp(email, otp);
         
         String token = jwtUtil.generateToken(user.getUsername());
         
@@ -47,8 +71,25 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
     
+    @PostMapping("/resend-otp")
+    public ResponseEntity<Map<String, String>> resendOtp(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        if (email == null || email.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        
+        userService.resendVerificationOtp(email);
+        
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "OTP_RESENT");
+        response.put("email", email);
+        
+        return ResponseEntity.ok(response);
+    }
+    
     @PostMapping("/login")
-    public ResponseEntity<AuthDTO> login(@RequestBody AuthDTO authDTO) {
+    public ResponseEntity<?> login(@RequestBody AuthDTO authDTO) {
+        System.out.println("LOGIN attempt for username: " + authDTO.getUsername());
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
@@ -56,6 +97,7 @@ public class AuthController {
                             authDTO.getPassword()
                     )
             );
+            System.out.println("Authentication successful for: " + authDTO.getUsername());
             
             User user = userService.findByUsername(authDTO.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
@@ -72,8 +114,11 @@ public class AuthController {
             
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            System.out.println("LOGIN FAILED: " + e.getMessage());
-            return ResponseEntity.status(401).build();
+            System.out.println("LOGIN FAILED: " + e.getClass().getName() + " - " + e.getMessage());
+            e.printStackTrace();
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Invalid username or password");
+            return ResponseEntity.status(401).body(error);
         }
     }
     

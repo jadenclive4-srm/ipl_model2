@@ -142,6 +142,17 @@ export interface AuthResponse {
   role: string;
 }
 
+export interface RegisterResponse {
+  message: string;
+  email: string;
+  username: string;
+}
+
+export interface OtpResendResponse {
+  message: string;
+  email: string;
+}
+
 export interface AIQueryRequest {
   query: string;
   teams?: Record<string, string>;

@@ -6,8 +6,10 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 @ControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(RuntimeException.class)
@@ -23,13 +25,14 @@ public class GlobalExceptionHandler {
             }
         }
         
+        log.error("RuntimeException caught: {}", message, ex);
         return ResponseEntity.status(status)
                 .body(Map.of("error", message != null ? message : "Unknown error"));
     }
     
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGenericException(Exception ex) {
-        ex.printStackTrace();
+        log.error("Unexpected exception", ex);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(Map.of("error", "Internal server error: " + ex.getMessage()));
     }
