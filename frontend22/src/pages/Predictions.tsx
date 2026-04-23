@@ -52,9 +52,9 @@ const Predictions: React.FC = () => {
       <header className="bg-spotify-surface border-b border-spotify-surfaceLight">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-3xl font-bold text-spotify-green">My Predictions</h1>
-            </div>
+           <div className="flex items-center">
+               <h1 className="text-lg font-bold text-spotify-green sm:text-xl md:text-2xl">My Predictions</h1>
+             </div>
             <div className="flex items-center space-x-4">
               <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
               <span className="text-sm text-spotify-textMuted">Points: {userPoints}</span>

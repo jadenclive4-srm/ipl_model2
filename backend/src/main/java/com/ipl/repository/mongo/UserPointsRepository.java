@@ -10,4 +10,5 @@ import java.util.Optional;
 public interface UserPointsRepository extends MongoRepository<UserPoints, String> {
     Optional<UserPoints> findByUserId(Long userId);
     List<UserPoints> findAllByOrderByTotalPointsDesc();
+    Long countByTotalPointsGreaterThan(Long points);
 }

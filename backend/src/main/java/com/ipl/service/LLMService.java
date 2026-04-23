@@ -39,10 +39,10 @@ public class LLMService {
         TEAM_ALIASES.put("delhi", "Delhi Capitals");
     }
     
-    @Value("${anthropic.api.key:}")
+    @Value("${gemini.api.key:}")
     private String apiKey;
-    
-    @Value("${anthropic.model:claude-3-5-sonnet-20241022}")
+
+    @Value("${google.model:gemini-2.5-flash}")
     private String model;
     
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -53,15 +53,41 @@ public class LLMService {
         }
         
         try {
-            String prompt = "You are an IPL prediction agent. " +
-                "User question: " + userQuery + ". Prediction data: " + predictionData.toString() + ". " +
-                "Generate a short, clear explanation including: Winner, Probability, Key reasons.";
-            
-            String response = callAnthropicAPI(prompt);
+            String data = String.format("""
+Team1: %s
+Team2: %s
+Winner: %s
+Team1 Probability: %d%%
+Team2 Probability: %d%%
+Reasons: %s
+""",
+                predictionData.get("team1"),
+                predictionData.get("team2"),
+                predictionData.get("winner"),
+                predictionData.get("team1Probability"),
+                predictionData.get("team2Probability"),
+                predictionData.get("reasons")
+            );
+
+            String prompt = """
+You are an IPL match prediction assistant.
+
+Answer in 1 short sentence based ONLY on the match data provided.
+
+User Question:
+%s
+
+Match Data:
+%s
+
+Keep your answer concise and directly relevant to the question.
+""".formatted(userQuery, data);
+
+            String response = callGeminiAPI(prompt);
             return response != null ? response : generateFallbackResponse(userQuery, predictionData);
-            
+
         } catch (RestClientException e) {
-            log.error("Error calling Anthropic API: {}", e.getMessage());
+            log.error("Error calling Gemini API: {}", e.getMessage());
             return generateFallbackResponse(userQuery, predictionData);
         } catch (Exception e) {
             log.error("Error generating response: {}", e.getMessage());
@@ -90,42 +116,48 @@ public class LLMService {
         return result;
     }
     
-    private String callAnthropicAPI(String prompt) {
+    public String callGeminiAPI(String prompt) {
+        log.info("MODEL USED: {}", model);
         RestTemplate restTemplate = new RestTemplate();
-        
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set("x-api-key", apiKey);
-        headers.set("anthropic-version", "2023-06-01");
-        
+
         Map<String, Object> requestBody = new HashMap<>();
-        requestBody.put("model", model);
-        requestBody.put("max_tokens", 300);
-        
-        List<Map<String, String>> messages = new ArrayList<>();
-        Map<String, String> userMessage = new HashMap<>();
-        userMessage.put("role", "user");
-        userMessage.put("content", prompt);
-        messages.add(userMessage);
-        requestBody.put("messages", messages);
-        
+
+        List<Map<String, Object>> contents = new ArrayList<>();
+        Map<String, Object> content = new HashMap<>();
+        List<Map<String, String>> parts = new ArrayList<>();
+        Map<String, String> part = new HashMap<>();
+        part.put("text", prompt);
+        parts.add(part);
+        content.put("parts", parts);
+        contents.add(content);
+        requestBody.put("contents", contents);
+
         HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
-        
+
         ResponseEntity<String> response = restTemplate.postForEntity(
-            "https://api.anthropic.com/v1/messages",
+            "https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent?key=" + apiKey,
             request,
             String.class
         );
-        
+
         return parseResponse(response.getBody());
     }
     
     private String parseResponse(String response) {
         try {
             JsonNode root = objectMapper.readTree(response);
-            JsonNode content = root.get("content");
-            if (content != null && content.isArray() && content.size() > 0) {
-                return content.get(0).get("text").asText();
+            JsonNode candidates = root.get("candidates");
+            if (candidates != null && candidates.isArray() && candidates.size() > 0) {
+                JsonNode content = candidates.get(0).get("content");
+                if (content != null) {
+                    JsonNode parts = content.get("parts");
+                    if (parts != null && parts.isArray() && parts.size() > 0) {
+                        return parts.get(0).get("text").asText();
+                    }
+                }
             }
             return null;
         } catch (Exception e) {
@@ -138,58 +170,16 @@ public class LLMService {
         String team1 = (String) predictionData.get("team1");
         String team2 = (String) predictionData.get("team2");
         String winner = (String) predictionData.get("winner");
+
         int team1Prob = predictionData.get("team1Probability") != null ? (int) predictionData.get("team1Probability") : 50;
         int team2Prob = predictionData.get("team2Probability") != null ? (int) predictionData.get("team2Probability") : 50;
-        
-        if (userQuery == null) userQuery = "";
-        userQuery = userQuery.toLowerCase();
-        
-        if (userQuery.contains("who") || userQuery.contains("win") || userQuery.contains("winner") || userQuery.contains("predict")) {
-            int winnerProb = winner.equals(team1) ? team1Prob : team2Prob;
-            return winner + " are likely to win with a " + winnerProb + "% probability based on strong past performance and better standings.";
-        }
-        
-        if (userQuery.contains("why") || userQuery.contains("reason") || userQuery.contains("explain")) {
-            StringBuilder sb = new StringBuilder();
-            sb.append(winner).append(" is favored because: ");
-            
-            if (predictionData.containsKey("reasons")) {
-                List<String> reasons = (List<String>) predictionData.get("reasons");
-                for (int i = 0; i < Math.min(2, reasons.size()); i++) {
-                    sb.append(reasons.get(i));
-                    if (i == 0) sb.append(". ");
-                }
-            }
-            
-            return sb.toString();
-        }
-        
-        if (userQuery.contains("probability") || userQuery.contains("chance") || userQuery.contains("odds")) {
-            String better = team1Prob > team2Prob ? team1 : team2;
-            return "Current prediction probabilities:\n- " + team1 + ": " + team1Prob + "%\n- " + team2 + ": " + team2Prob + "%\n\n" + better + " has a better chance of winning.";
-        }
-        
-        if (userQuery.contains("underrated") || userQuery.contains("underdog") || userQuery.contains("upset")) {
-            String underdog = team1Prob < team2Prob ? team1 : team2;
-            int underdogProb = Math.min(team1Prob, team2Prob);
-            return underdog + " might be undervalued at " + underdogProb + "%. They could be a dark horse if conditions favor them!";
-        }
-        
-        if (userQuery.contains("h2h") || userQuery.contains("head") || userQuery.contains("record") || userQuery.contains("history")) {
-            if (predictionData.containsKey("headToHead")) {
-                Map<String, Object> h2h = (Map<String, Object>) predictionData.get("headToHead");
-                int total = (int) h2h.getOrDefault("totalMatches", 0);
-                int t1Wins = (int) h2h.getOrDefault("team1Wins", 0);
-                int t2Wins = (int) h2h.getOrDefault("team2Wins", 0);
-                
-                if (total > 0) {
-                    return "Head-to-head record: " + total + " matches total. " + team1 + " has won " + t1Wins + " times, " + team2 + " has won " + t2Wins + " times.";
-                }
-            }
-            return "No historical head-to-head data available for these teams.";
-        }
-        
-        int winnerProb = winner.equals(team1) ? team1Prob : team2Prob;
-        return "Analysis for " + team1 + " vs " + team2 + ": " + winner + " is predicted to win with " + winnerProb + "% probability. Ask me about reasons, probabilities, or head-to-head record!";
+
+        return String.format(
+            "%s is likely to win against %s (%d%% vs %d%%).",
+            winner,
+            winner.equals(team1) ? team2 : team1,
+            Math.max(team1Prob, team2Prob),
+            Math.min(team1Prob, team2Prob)
+        );
     }
 }

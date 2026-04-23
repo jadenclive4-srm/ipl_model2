@@ -123,7 +123,7 @@ const Login: React.FC = () => {
               Verify your email
             </h2>
             <p className="mt-2 text-center text-sm text-spotify-textSecondary">
-              We sent a 6-digit code to <strong style={{color:'#1db954'}}>{pendingEmail}</strong>
+              We sent a 6-digit code to <strong className="break-words" style={{color:'#1db954'}}>{pendingEmail}</strong>
             </p>
           </div>
           <form className="mt-8 space-y-6" onSubmit={handleOtpSubmit}>

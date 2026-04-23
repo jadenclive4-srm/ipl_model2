@@ -97,7 +97,7 @@ public class QuestionService {
         userAnswer = userAnswerRepository.save(userAnswer);
         
         if (isCorrect) {
-            userRepository.incrementPoints(userId, PointsConfig.QUIZ_CORRECT);
+            userPointsService.updateUserPoints(userId, PointsConfig.QUIZ_CORRECT);
         }
         
         return convertAnswerToDTO(userAnswer);
@@ -252,7 +252,6 @@ public class QuestionService {
                 Long userId = answer.getUser().getId();
                 if (answer.getIsCorrect() != null && answer.getIsCorrect()) {
                     if (answer.getPointsEarned() != null && answer.getPointsEarned() > 0) {
-                        userRepository.incrementPoints(userId, -answer.getPointsEarned());
                         userPointsService.updateUserPoints(userId, -answer.getPointsEarned());
                     }
                 }
@@ -315,7 +314,7 @@ public class QuestionService {
                 
                 if (isCorrect) {
                     answer.setPointsEarned(PointsConfig.QUIZ_CORRECT);
-                    userRepository.incrementPoints(answer.getUser().getId(), PointsConfig.QUIZ_CORRECT);
+                    userPointsService.updateUserPoints(answer.getUser().getId(), PointsConfig.QUIZ_CORRECT);
                 } else {
                     answer.setPointsEarned(0);
                 }

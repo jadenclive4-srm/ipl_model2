@@ -84,9 +84,9 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictC
       <div className="flex items-center justify-between">
         <div className="flex flex-col items-center">
           <TeamLogo name={match.homeTeamName} shortName={match.homeTeamShortName} size={isLarge ? 'large' : 'normal'} logoUrl={match.homeTeamLogoUrl} />
-          <span className={`mt-2 font-medium text-spotify-text text-center truncate ${isLarge ? 'text-lg max-w-[100px]' : 'text-sm max-w-[80px]'}`}>
-            {match.homeTeamShortName}
-          </span>
+           <span className={`mt-2 font-medium text-spotify-text text-center truncate min-w-0 break-words ${isLarge ? 'text-lg max-w-[100px]' : 'text-sm max-w-[80px]'}`}>
+             {match.homeTeamShortName}
+           </span>
         </div>
 
         <div className="flex flex-col items-center px-4">

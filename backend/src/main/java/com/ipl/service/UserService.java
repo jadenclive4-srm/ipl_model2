@@ -6,6 +6,7 @@ import com.ipl.model.mongo.UserMongo;
 import com.ipl.repository.EmailVerificationRepository;
 import com.ipl.repository.UserRepository;
 import com.ipl.repository.mongo.UserMongoRepository;
+import com.ipl.service.UserPointsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -31,6 +32,7 @@ public class UserService implements UserDetailsService {
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailService emailService;
     private final UserMongoRepository userMongoRepository;
+    private final UserPointsService userPointsService;
     
     private static final int OTP_EXPIRY_MINUTES = 10;
     private static final int OTP_LENGTH = 6;
@@ -82,8 +84,6 @@ public class UserService implements UserDetailsService {
         user.setUniqueUserId(uniqueUserId);
         user.setPassword(passwordEncoder.encode(password));
         user.setFullName(fullName);
-        user.setPoints(0);
-        user.setRank(0);
         user.setRole(role);
         user.setIsActive(false);
         user.setEmailVerified(false);
@@ -167,8 +167,6 @@ public class UserService implements UserDetailsService {
         user.setUniqueUserId(uniqueUserId);
         user.setPassword(passwordEncoder.encode(password));
         user.setFullName(fullName);
-        user.setPoints(0);
-        user.setRank(0);
         user.setRole(role);
         user.setIsActive(true);
         user.setEmailVerified(true);
@@ -204,30 +202,28 @@ public class UserService implements UserDetailsService {
             return h2User;
         }
         
-        // Check MongoDB and convert to H2 User
-        try {
-            Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(username);
-            if (mongoUser.isPresent()) {
-                UserMongo um = mongoUser.get();
-                User user = new User();
-                user.setId(um.getId());
-                user.setUsername(um.getUsername());
-                user.setEmail(um.getEmail());
-                user.setUniqueUserId(um.getUniqueUserId());
-                user.setPassword(um.getPassword());
-                user.setFullName(um.getFullName());
-                user.setPoints(um.getPoints());
-                user.setRank(um.getRank());
-                user.setRole(um.getRole());
-                user.setIsActive(um.getIsActive());
-                user.setEmailVerified(um.getEmailVerified());
-                user.setCreatedAt(um.getCreatedAt());
-                user.setUpdatedAt(um.getUpdatedAt());
-                return Optional.of(user);
-            }
-        } catch (Exception e) {
-            System.err.println("Error checking MongoDB for user: " + e.getMessage());
-        }
+         // Check MongoDB and convert to H2 User
+         try {
+             Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(username);
+             if (mongoUser.isPresent()) {
+                 UserMongo um = mongoUser.get();
+                 User user = new User();
+                 user.setId(um.getId());
+                 user.setUsername(um.getUsername());
+                 user.setEmail(um.getEmail());
+                 user.setUniqueUserId(um.getUniqueUserId());
+                 user.setPassword(um.getPassword());
+                 user.setFullName(um.getFullName());
+                 user.setRole(um.getRole());
+                 user.setIsActive(um.getIsActive());
+                 user.setEmailVerified(um.getEmailVerified());
+                 user.setCreatedAt(um.getCreatedAt());
+                 user.setUpdatedAt(um.getUpdatedAt());
+                 return Optional.of(user);
+             }
+         } catch (Exception e) {
+             System.err.println("Error checking MongoDB for user: " + e.getMessage());
+         }
         
         return Optional.empty();
     }
@@ -239,33 +235,31 @@ public class UserService implements UserDetailsService {
             return h2User;
         }
         
-        // Check MongoDB and sync to H2
-        try {
-            Optional<UserMongo> mongoUser = userMongoRepository.findById(id);
-            if (mongoUser.isPresent()) {
-                UserMongo um = mongoUser.get();
-                User user = new User();
-                user.setId(um.getId());
-                user.setUsername(um.getUsername());
-                user.setEmail(um.getEmail());
-                user.setUniqueUserId(um.getUniqueUserId());
-                user.setPassword(um.getPassword());
-                user.setFullName(um.getFullName());
-                user.setPoints(um.getPoints());
-                user.setRank(um.getRank());
-                user.setRole(um.getRole());
-                user.setIsActive(um.getIsActive());
-                user.setEmailVerified(um.getEmailVerified());
-                user.setCreatedAt(um.getCreatedAt());
-                user.setUpdatedAt(um.getUpdatedAt());
-                
-                // Save to H2 so foreign key constraints work
-                User savedUser = userRepository.save(user);
-                return Optional.of(savedUser);
-            }
-        } catch (Exception e) {
-            System.err.println("Error checking MongoDB for user id: " + e.getMessage());
-        }
+         // Check MongoDB and sync to H2
+         try {
+             Optional<UserMongo> mongoUser = userMongoRepository.findById(id);
+             if (mongoUser.isPresent()) {
+                 UserMongo um = mongoUser.get();
+                 User user = new User();
+                 user.setId(um.getId());
+                 user.setUsername(um.getUsername());
+                 user.setEmail(um.getEmail());
+                 user.setUniqueUserId(um.getUniqueUserId());
+                 user.setPassword(um.getPassword());
+                 user.setFullName(um.getFullName());
+                 user.setRole(um.getRole());
+                 user.setIsActive(um.getIsActive());
+                 user.setEmailVerified(um.getEmailVerified());
+                 user.setCreatedAt(um.getCreatedAt());
+                 user.setUpdatedAt(um.getUpdatedAt());
+                 
+                 // Save to H2 so foreign key constraints work
+                 User savedUser = userRepository.save(user);
+                 return Optional.of(savedUser);
+             }
+         } catch (Exception e) {
+             System.err.println("Error checking MongoDB for user id: " + e.getMessage());
+         }
         
         return Optional.empty();
     }
@@ -309,21 +303,19 @@ public class UserService implements UserDetailsService {
         
         System.out.println("Loading user from H2: " + username + ", isActive=" + h2User.getIsActive() + ", hasPassword=" + (h2User.getPassword() != null));
         
-        // Migrate to MongoDB
-        UserMongo migrated = new UserMongo();
-        migrated.setId(h2User.getId());
-        migrated.setUsername(h2User.getUsername());
-        migrated.setEmail(h2User.getEmail());
-        migrated.setUniqueUserId(h2User.getUniqueUserId());
-        migrated.setPassword(h2User.getPassword());
-        migrated.setFullName(h2User.getFullName());
-        migrated.setPoints(h2User.getPoints());
-        migrated.setRank(h2User.getRank());
-        migrated.setIsActive(h2User.getIsActive());
-        migrated.setEmailVerified(h2User.getEmailVerified() != null ? h2User.getEmailVerified() : false);
-        migrated.setRole(h2User.getRole());
-        migrated.setCreatedAt(h2User.getCreatedAt());
-        migrated.setUpdatedAt(h2User.getUpdatedAt() != null ? h2User.getUpdatedAt() : System.currentTimeMillis());
+         // Migrate to MongoDB
+         UserMongo migrated = new UserMongo();
+         migrated.setId(h2User.getId());
+         migrated.setUsername(h2User.getUsername());
+         migrated.setEmail(h2User.getEmail());
+         migrated.setUniqueUserId(h2User.getUniqueUserId());
+         migrated.setPassword(h2User.getPassword());
+         migrated.setFullName(h2User.getFullName());
+         migrated.setIsActive(h2User.getIsActive());
+         migrated.setEmailVerified(h2User.getEmailVerified() != null ? h2User.getEmailVerified() : false);
+         migrated.setRole(h2User.getRole());
+         migrated.setCreatedAt(h2User.getCreatedAt());
+         migrated.setUpdatedAt(h2User.getUpdatedAt() != null ? h2User.getUpdatedAt() : System.currentTimeMillis());
         try {
             userMongoRepository.save(migrated);
             System.out.println("User migrated to MongoDB: " + username);
@@ -340,36 +332,11 @@ public class UserService implements UserDetailsService {
             true,
             List.of(new SimpleGrantedAuthority("ROLE_" + h2User.getRole()))
         );
-    }
-     
-    public List<User> getLeaderboard() {
-        return userRepository.findAllByOrderByPointsDesc();
-    }
-    
+     }
+      
     @Transactional
     public void updateUserPoints(Long userId, Integer pointsToAdd) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        
-        user.setPoints(user.getPoints() + pointsToAdd);
-        user.setUpdatedAt(System.currentTimeMillis());
-        
-        updateUserRank(user);
-        userRepository.save(user);
-        
-        // Sync to MongoDB if exists
-        userMongoRepository.findById(userId).ifPresent(um -> {
-            um.setPoints(user.getPoints());
-            um.setRank(user.getRank());
-            um.setUpdatedAt(user.getUpdatedAt());
-            userMongoRepository.save(um);
-        });
-    }
-    
-    @Transactional
-    public void updateUserRank(User user) {
-        Long usersWithMorePoints = userRepository.countUsersWithMorePoints(user.getPoints());
-        user.setRank(usersWithMorePoints.intValue() + 1);
+        userPointsService.updateUserPoints(userId, pointsToAdd);
     }
     
     public List<User> getAllUsers() {
@@ -416,8 +383,6 @@ public class UserService implements UserDetailsService {
             migrated.setUniqueUserId(user.getUniqueUserId());
             migrated.setPassword(user.getPassword());
             migrated.setFullName(user.getFullName());
-            migrated.setPoints(user.getPoints());
-            migrated.setRank(user.getRank());
             migrated.setIsActive(user.getIsActive());
             migrated.setEmailVerified(user.getEmailVerified() != null ? user.getEmailVerified() : false);
             migrated.setRole(user.getRole());
@@ -473,8 +438,6 @@ public class UserService implements UserDetailsService {
             userMongo.setUniqueUserId(user.getUniqueUserId());
             userMongo.setPassword(encoded);
             userMongo.setFullName(user.getFullName());
-            userMongo.setPoints(user.getPoints());
-            userMongo.setRank(user.getRank());
             userMongo.setIsActive(user.getIsActive());
             userMongo.setEmailVerified(user.getEmailVerified() != null ? user.getEmailVerified() : false);
             userMongo.setRole(user.getRole());
@@ -570,8 +533,6 @@ public class UserService implements UserDetailsService {
                 userMongo.setUniqueUserId(user.getUniqueUserId());
                 userMongo.setPassword(user.getPassword());
                 userMongo.setFullName(user.getFullName());
-                userMongo.setPoints(user.getPoints());
-                userMongo.setRank(user.getRank());
                 userMongo.setIsActive(true);
                 userMongo.setEmailVerified(true);
                 userMongo.setRole(user.getRole());

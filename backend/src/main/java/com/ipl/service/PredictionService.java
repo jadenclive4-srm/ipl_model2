@@ -130,10 +130,6 @@ public class PredictionService {
             }
             
             updateUserPredictionInMongo(prediction.getUser().getId(), matchId, isCorrect, pointsEarned);
-            
-            if (isCorrect) {
-                userService.updateUserPoints(prediction.getUser().getId(), pointsEarned);
-            }
         }
     }
     
@@ -145,7 +141,6 @@ public class PredictionService {
             Long userId = prediction.getUser().getId();
             if (prediction.getIsCorrect() != null && prediction.getIsCorrect()) {
                 if (prediction.getPointsEarned() != null && prediction.getPointsEarned() > 0) {
-                    userService.updateUserPoints(userId, -prediction.getPointsEarned());
                     userPointsService.updateUserPoints(userId, -prediction.getPointsEarned());
                 }
             }

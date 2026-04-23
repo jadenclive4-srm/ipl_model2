@@ -3,6 +3,7 @@ package com.ipl.controller;
 import com.ipl.dto.UserDTO;
 import com.ipl.model.User;
 import com.ipl.service.UserService;
+import com.ipl.service.UserPointsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import java.util.stream.Collectors;
 public class UserController {
     
     private final UserService userService;
+    private final UserPointsService userPointsService;
     
     @GetMapping
     public ResponseEntity<List<UserDTO>> getAllUsers() {
@@ -67,11 +69,15 @@ public class UserController {
     
     private UserDTO convertToDTO(User user) {
         UserDTO dto = new UserDTO();
-dto.setId(user.getId() != null ? user.getId().longValue() : null);        dto.setUsername(user.getUsername());
+        dto.setId(user.getId() != null ? user.getId().longValue() : null);
+        dto.setUsername(user.getUsername());
         dto.setEmail(user.getEmail());
         dto.setFullName(user.getFullName());
-        dto.setPoints(user.getPoints() != null ? Long.valueOf(user.getPoints()) : null);
-        dto.setRank(user.getRank());
+        // Get points and rank from UserPointsService (MongoDB)
+        Long points = userPointsService.getUserPoints(user.getId());
+        dto.setPoints(points);
+        int rank = userPointsService.getUserRank(user.getId());
+        dto.setRank(rank);
         dto.setRole(user.getRole());
         dto.setCreatedAt(user.getCreatedAt());
         return dto;

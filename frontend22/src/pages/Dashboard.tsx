@@ -116,20 +116,38 @@ const Dashboard: React.FC = () => {
   };
 
   const tabs = [
-    { id: 'matches' as TabType, name: 'Matches', current: activeTab === 'matches' },
-    { id: 'predictions' as TabType, name: 'Predictions', current: activeTab === 'predictions' },
-    { id: 'leaderboard' as TabType, name: 'Leaderboard', current: activeTab === 'leaderboard' },
-    { id: 'ai' as TabType, name: 'AI Assistant', current: activeTab === 'ai' },
+    { id: 'matches' as TabType, name: 'Matches', icon: '🏏', current: activeTab === 'matches' },
+    { id: 'predictions' as TabType, name: 'Predictions', icon: '🎯', current: activeTab === 'predictions' },
+    { id: 'leaderboard' as TabType, name: 'Leaderboard', icon: '🏆', current: activeTab === 'leaderboard' },
+    { id: 'ai' as TabType, name: 'AI Assistant', icon: '🤖', current: activeTab === 'ai' },
   ];
 
   return (
     <div className="min-h-screen bg-spotify-dark">
       <header className="bg-spotify-surface border-b border-spotify-surfaceLight">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          {/* Mobile Layout - Title with buttons on sides */}
+          <div className="flex sm:hidden items-center justify-between py-4">
+            <button
+              onClick={() => user?.role === 'ADMIN' && navigate('/admin')}
+              className={`bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-3 py-1 rounded-full text-xs font-medium ${user?.role !== 'ADMIN' ? 'opacity-0 pointer-events-none' : ''}`}
+            >
+              Admin
+            </button>
+            <h1 className="text-lg font-bold text-spotify-green">IPL Predictor</h1>
+            <button
+              onClick={logout}
+              className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 py-1 rounded-full text-xs font-medium"
+            >
+              Logout
+            </button>
+          </div>
+
+          {/* Desktop Layout */}
+          <div className="hidden sm:flex sm:justify-between sm:items-center py-6">
             <div className="flex items-center">
-              <h1 className="text-3xl font-bold text-spotify-green">IPL Predictor</h1>
-            </div>
+                <h1 className="text-xl md:text-2xl font-bold text-spotify-green">IPL Predictor</h1>
+              </div>
             <div className="flex items-center space-x-4">
               <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
               <span className="text-sm text-spotify-textMuted">Points: {userPoints}</span>
@@ -152,9 +170,10 @@ const Dashboard: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="bg-spotify-surface border border-spotify-surfaceLight rounded-t-lg">
-          <nav className="-mb-px flex space-x-8 px-4" aria-label="Tabs">
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pb-16 md:pb-6">
+        {/* Desktop Navigation - Hidden on mobile, visible on md+ screens */}
+        <div className="hidden md:block bg-spotify-surface border border-spotify-surfaceLight rounded-t-lg mb-6">
+          <nav className="flex space-x-8 -mb-px px-4" aria-label="Tabs">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
@@ -227,6 +246,26 @@ const Dashboard: React.FC = () => {
           {activeTab === 'ai' && <AIQuery />}
         </div>
       </main>
+
+      {/* Bottom Navigation - Visible on mobile/tablet, hidden on desktop */}
+      <nav className="block md:hidden fixed bottom-0 left-0 right-0 bg-spotify-surface border-t border-spotify-surfaceLight z-50">
+        <div className="flex">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex-1 flex flex-col items-center justify-center py-3 px-2 text-xs font-medium transition-colors ${
+                tab.current
+                  ? 'text-spotify-green bg-spotify-surfaceLight'
+                  : 'text-spotify-textMuted hover:text-spotify-textSecondary hover:bg-spotify-surfaceHover'
+              }`}
+            >
+              <span className="text-lg mb-1">{tab.icon}</span>
+              <span className="text-center leading-tight">{tab.name}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
     </div>
   );
 };
