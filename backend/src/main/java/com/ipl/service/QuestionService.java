@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -44,7 +45,6 @@ public class QuestionService {
         for (Question question : questions) {
             QuestionDTO dto = convertToDTO(question);
             
-            // Check if user has already answered this question
             Optional<UserAnswer> existingAnswer = userAnswerRepository.findByUserIdAndQuestionId(userId, question.getId());
             if (existingAnswer.isPresent()) {
                 dto.setHasAnswered(true);
@@ -67,16 +67,13 @@ public class QuestionService {
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
         
-        // Check if user already answered this question
         Optional<UserAnswer> existingAnswer = userAnswerRepository.findByUserIdAndQuestionId(userId, questionId);
         
         UserAnswer userAnswer;
         if (existingAnswer.isPresent()) {
-            // Update existing answer
             userAnswer = existingAnswer.get();
             userAnswer.setSelectedOption(selectedOption);
         } else {
-            // Create new answer
             userAnswer = new UserAnswer();
             userAnswer.setUser(user);
             userAnswer.setQuestion(question);
@@ -84,7 +81,6 @@ public class QuestionService {
             userAnswer.setAnsweredAt(System.currentTimeMillis());
         }
         
-        // Check if answer is correct
         boolean isCorrect = selectedOption.equalsIgnoreCase(question.getCorrectOption());
         userAnswer.setIsCorrect(isCorrect);
         
@@ -166,79 +162,110 @@ public class QuestionService {
         return questionRepository.findAllByMatchId(matchId);
     }
     
-@Transactional
+    @Transactional
     public void evaluateQuizAnswers(Long matchId) {
-        // Read correct answers from MongoDB quiz_correct_answers collection
-        Map<String, String> correctAnswers = getCorrectAnswersFromMongo(matchId);
+        Map<String, String> correctAnswerLetters = getCorrectAnswersFromMongo(matchId);
+        if (correctAnswerLetters == null || correctAnswerLetters.isEmpty()) {
+            throw new RuntimeException("Cannot evaluate quiz: correct answers not set for match " + matchId);
+        }
+        System.out.println("Evaluating quiz for matchId=" + matchId + ", correctAnswerLetters=" + correctAnswerLetters);
         
-        if (correctAnswers == null || correctAnswers.isEmpty()) {
-            System.out.println("No correct answers in quiz_correct_answers collection. Checking user_responses for questions...");
-            
-            // Direct evaluate - assume all answered questions are being evaluated
-            List<UserResponse> responses = userResponseRepository.findByMatchId(matchId);
-            if (responses.isEmpty()) {
-                throw new RuntimeException("No user responses found for match " + matchId);
+        List<Question> questions = questionRepository.findAllByMatchId(matchId);
+        System.out.println("Found " + questions.size() + " questions in H2 for match " + matchId);
+        
+        Map<Long, Map<String, String>> questionIdToOptionMap = new HashMap<>();
+        if (questions.isEmpty()) {
+            System.out.println("WARNING: No questions in H2. Building dynamic defaults from match data.");
+            Match match = matchRepository.findById(matchId)
+                .orElseThrow(() -> new RuntimeException("Cannot evaluate: No questions and match not found for matchId=" + matchId));
+            questionIdToOptionMap = buildDefaultQuestionOptionsForMatch(match);
+        } else {
+            for (Question q : questions) {
+                questionIdToOptionMap.put(q.getId(), buildOptionMap(q));
             }
-            
-            // For each user response, mark all as correct (for testing) or ask admin to provide correct answers
-            for (UserResponse ur : responses) {
-                if (ur.getResponses() != null) {
-                    for (UserResponse.QuestionResponse qr : ur.getResponses()) {
-                        // Mark as correct for now (points will be added)
-                        qr.setIsCorrect(true);
-                        qr.setPointsEarned(PointsConfig.QUIZ_CORRECT);
-                        userPointsService.updateUserPoints(ur.getUserId(), PointsConfig.QUIZ_CORRECT);
+            // Also add default options (keys 1-5) to handle legacy user responses that may still reference old IDs
+            Match match = matchRepository.findById(matchId).orElse(null);
+            if (match != null) {
+                Map<Long, Map<String, String>> defaults = buildDefaultQuestionOptionsForMatch(match);
+                for (Map.Entry<Long, Map<String, String>> e : defaults.entrySet()) {
+                    if (!questionIdToOptionMap.containsKey(e.getKey())) {
+                        questionIdToOptionMap.put(e.getKey(), e.getValue());
                     }
-                    userResponseRepository.save(ur);
                 }
             }
-            return;
         }
+        System.out.println("Available question IDs: " + questionIdToOptionMap.keySet());
         
-        System.out.println("Evaluating quiz for matchId=" + matchId + ", correctAnswers=" + correctAnswers);
+        List<UserResponse> userResponses = userResponseRepository.findByMatchId(matchId);
+        System.out.println("Found " + userResponses.size() + " user quiz responses to evaluate");
         
-        // Evaluate MongoDB user_responses collection
-        try {
-            List<UserResponse> mongoResponses = userResponseRepository.findByMatchId(matchId);
-            System.out.println("Found " + mongoResponses.size() + " user responses");
-            
-            for (UserResponse ur : mongoResponses) {
-                System.out.println("Processing userId=" + ur.getUserId() + " responses=" + (ur.getResponses() != null ? ur.getResponses().size() : 0));
-                
-                if (ur.getResponses() != null) {
-                    int correctCount = 0;
-                    
-                    for (UserResponse.QuestionResponse qr : ur.getResponses()) {
-                        String correctOption = correctAnswers.get(qr.getQuestionId());
-                        System.out.println("Question " + qr.getQuestionId() + " user answered=" + qr.getSelectedOption() + " correct=" + correctOption);
-                        
-                        boolean isCorrect = qr.getSelectedOption() != null && 
-                            qr.getSelectedOption().equalsIgnoreCase(correctOption);
-                        qr.setIsCorrect(isCorrect);
-                        
-                        if (isCorrect) {
-                            qr.setPointsEarned(PointsConfig.QUIZ_CORRECT);
-                            correctCount++;
-                            System.out.println("Correct! Awarding " + PointsConfig.QUIZ_CORRECT + " points");
-                        } else {
-                            qr.setPointsEarned(0);
-                        }
+        for (UserResponse userResponse : userResponses) {
+            Long userId = userResponse.getUserId();
+            List<UserResponse.QuestionResponse> responses = userResponse.getResponses();
+            if (responses == null) continue;
+            boolean updated = false;
+            for (UserResponse.QuestionResponse qr : responses) {
+                String questionIdStr = qr.getQuestionId();
+                if (questionIdStr == null) continue;
+                String selectedOptionText = qr.getSelectedOption();
+                String correctLetter = correctAnswerLetters.get(questionIdStr);
+                if (correctLetter == null) {
+                    System.out.println("No correct answer defined for questionId=" + questionIdStr);
+                    continue;
+                }
+                Long questionId = null;
+                try {
+                    questionId = Long.parseLong(questionIdStr);
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid questionId format: " + questionIdStr);
+                    continue;
+                }
+                Map<String, String> optionMap = questionIdToOptionMap.get(questionId);
+                if (optionMap == null) {
+                    System.out.println("No option map for questionId=" + questionIdStr + 
+                                     ". Available: " + questionIdToOptionMap.keySet());
+                    continue;
+                }
+                String correctOptionText = optionMap.get(correctLetter);
+                if (correctOptionText == null) {
+                    System.out.println("No option text for letter '" + correctLetter + "' in question " + questionId);
+                    continue;
+                }
+                boolean isCorrect = selectedOptionText != null && 
+                                   selectedOptionText.equalsIgnoreCase(correctOptionText);
+                qr.setIsCorrect(isCorrect);
+                if (isCorrect) {
+                    qr.setPointsEarned(PointsConfig.QUIZ_CORRECT);
+                    System.out.println("User " + userId + " CORRECT for Q" + questionId + 
+                                       ". +" + PointsConfig.QUIZ_CORRECT + " points. Selected='" + 
+                                       selectedOptionText + "', Expected='" + correctOptionText + "'");
+                    try {
+                        userPointsService.updateUserPoints(userId, PointsConfig.QUIZ_CORRECT);
+                    } catch (Exception e) {
+                        System.err.println("Points award failed for userId=" + userId + ": " + e.getMessage());
                     }
-                    
-                    // Award total points if any correct
-                    if (correctCount > 0) {
-                        int totalPoints = correctCount * PointsConfig.QUIZ_CORRECT;
-                        System.out.println("Awarding " + totalPoints + " total points to user " + ur.getUserId());
-                        userPointsService.updateUserPoints(ur.getUserId(), totalPoints);
-                    }
-                    
-                    userResponseRepository.save(ur);
+                } else {
+                    qr.setPointsEarned(0);
+                    System.out.println("User " + userId + " INCORRECT for Q" + questionId + 
+                                       ". Selected='" + selectedOptionText + "', Expected='" + correctOptionText + "'");
+                }
+                updated = true;
+            }
+            if (updated) {
+                try {
+                    userResponseRepository.save(userResponse);
+                    System.out.println("Saved updated UserResponse for userId=" + userId + ", matchId=" + matchId);
+                } catch (Exception e) {
+                    System.err.println("Failed to save UserResponse for userId=" + userId + ": " + e.getMessage());
                 }
             }
-        } catch (Exception e) {
-            System.err.println("MongoDB evaluation error: " + e.getMessage());
-            e.printStackTrace();
         }
+        System.out.println("Quiz evaluation completed for matchId=" + matchId);
+    }
+    
+    @Transactional
+    public void evaluateQuizAnswersFromMongo(Long matchId) {
+        evaluateQuizAnswers(matchId);
     }
     
     @Transactional
@@ -291,37 +318,6 @@ public class QuestionService {
         return quizCorrectAnswersRepository.findByMatchId(matchId)
                 .map(QuizCorrectAnswers::getCorrectAnswers)
                 .orElse(null);
-    }
-    
-    @Transactional
-    public void evaluateQuizAnswersFromMongo(Long matchId) {
-        Map<String, String> correctAnswers = getCorrectAnswersFromMongo(matchId);
-        
-        if (correctAnswers == null || correctAnswers.isEmpty()) {
-            throw new RuntimeException("No correct answers found in database. Please save correct answers first.");
-        }
-        
-        List<Question> questions = questionRepository.findAllByMatchId(matchId);
-        
-        for (Question question : questions) {
-            List<UserAnswer> answers = userAnswerRepository.findByQuestionId(question.getId());
-            String correctOption = correctAnswers.get(question.getId().toString());
-            
-            for (UserAnswer answer : answers) {
-                boolean isCorrect = correctOption != null && 
-                    answer.getSelectedOption().equalsIgnoreCase(correctOption);
-                answer.setIsCorrect(isCorrect);
-                
-                if (isCorrect) {
-                    answer.setPointsEarned(PointsConfig.QUIZ_CORRECT);
-                    userPointsService.updateUserPoints(answer.getUser().getId(), PointsConfig.QUIZ_CORRECT);
-                } else {
-                    answer.setPointsEarned(0);
-                }
-                
-                userAnswerRepository.save(answer);
-            }
-        }
     }
     
     @Transactional
@@ -389,5 +385,52 @@ public class QuestionService {
         dto.setPointsEarned(answer.getPointsEarned());
         dto.setAnsweredAt(answer.getAnsweredAt());
         return dto;
+    }
+    
+    private Map<String, String> buildOptionMap(Question q) {
+        Map<String, String> map = new HashMap<>();
+        map.put("A", q.getOptionA());
+        map.put("B", q.getOptionB());
+        if (q.getOptionC() != null && !q.getOptionC().isEmpty()) map.put("C", q.getOptionC());
+        if (q.getOptionD() != null && !q.getOptionD().isEmpty()) map.put("D", q.getOptionD());
+        return map;
+    }
+    
+    /**
+     * Builds the default question option map for a match when no H2 questions are uploaded.
+     * Q1 is the toss question with team names; Q2-5 are static.
+     */
+    private Map<Long, Map<String, String>> buildDefaultQuestionOptionsForMatch(Match match) {
+        Map<Long, Map<String, String>> map = new HashMap<>();
+        // Q1: Toss - use team short names or full names
+        Map<String, String> q1 = new HashMap<>();
+        String homeTeam = "Home Team";
+        String awayTeam = "Away Team";
+        if (match.getHomeTeam() != null) {
+            homeTeam = match.getHomeTeam().getShortName() != null ? match.getHomeTeam().getShortName() : match.getHomeTeam().getTeamName();
+        }
+        if (match.getAwayTeam() != null) {
+            awayTeam = match.getAwayTeam().getShortName() != null ? match.getAwayTeam().getShortName() : match.getAwayTeam().getTeamName();
+        }
+        q1.put("A", homeTeam);
+        q1.put("B", awayTeam);
+        map.put(1L, q1);
+        // Q2
+        Map<String, String> q2 = new HashMap<>();
+        q2.put("A", "Under 30"); q2.put("B", "30-50"); q2.put("C", "50-70"); q2.put("D", "70+");
+        map.put(2L, q2);
+        // Q3
+        Map<String, String> q3 = new HashMap<>();
+        q3.put("A", "Under 10"); q3.put("B", "10-15"); q3.put("C", "15-20"); q3.put("D", "20+");
+        map.put(3L, q3);
+        // Q4
+        Map<String, String> q4 = new HashMap<>();
+        q4.put("A", "Under 6"); q4.put("B", "6-7"); q4.put("C", "7-8"); q4.put("D", "8+");
+        map.put(4L, q4);
+        // Q5
+        Map<String, String> q5 = new HashMap<>();
+        q5.put("A", "Yes"); q5.put("B", "No");
+        map.put(5L, q5);
+        return map;
     }
 }

@@ -144,7 +144,14 @@ public class MatchService {
         
         return Optional.empty();
     }
-    
+
+    public List<Match> getTodaysMatches() {
+        java.time.LocalDate todayInIST = java.time.LocalDate.now(IST_ZONE);
+        long startOfToday = todayInIST.atStartOfDay(IST_ZONE).toInstant().toEpochMilli();
+        long endOfToday = todayInIST.plusDays(1).atStartOfDay(IST_ZONE).toInstant().toEpochMilli();
+        return matchRepository.findMatchesForToday(startOfToday, endOfToday);
+    }
+
     @Transactional
     public Match createMatch(Long homeTeamId, Long awayTeamId, String venue, Long matchDate, Integer matchNumber, String matchType) {
         Team homeTeam = teamRepository.findById(homeTeamId)

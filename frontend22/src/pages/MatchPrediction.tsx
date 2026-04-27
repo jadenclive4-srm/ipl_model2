@@ -26,13 +26,80 @@ const MatchPrediction: React.FC = () => {
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
 
-  const defaultQuizQuestions: Question[] = [
-    { id: 1, matchId: 0, questionText: 'How many wickets will fall in the powerplay (first 6 overs)?', optionA: '0-2', optionB: '3-4', optionC: '5-6', optionD: '7+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 2, matchId: 0, questionText: 'What will be the highest individual score in the match?', optionA: 'Under 30', optionB: '30-50', optionC: '50-70', optionD: '70+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 3, matchId: 0, questionText: 'How many boundaries (4s and 6s) will be hit in total?', optionA: 'Under 10', optionB: '10-15', optionC: '15-20', optionD: '20+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 4, matchId: 0, questionText: 'What will be the run rate in the powerplay overs?', optionA: 'Under 6', optionB: '6-7', optionC: '7-8', optionD: '8+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 5, matchId: 0, questionText: 'Will there be a dropped catch in the match?', optionA: 'Yes', optionB: 'No', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-  ];
+  const getDefaultQuestionsForMatch = (match: Match): Question[] => {
+    return [
+      { 
+        id: 1, 
+        matchId: match.id, 
+        questionText: 'Who will win the toss today?', 
+        optionA: match.homeTeamShortName || match.homeTeamName, 
+        optionB: match.awayTeamShortName || match.awayTeamName, 
+        optionC: '', 
+        optionD: '', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 2, 
+        matchId: match.id, 
+        questionText: 'What will be the highest individual score in the match?', 
+        optionA: 'Under 30', 
+        optionB: '30-50', 
+        optionC: '50-70', 
+        optionD: '70+', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 3, 
+        matchId: match.id, 
+        questionText: 'How many boundaries (4s and 6s) will be hit in total?', 
+        optionA: 'Under 10', 
+        optionB: '10-15', 
+        optionC: '15-20', 
+        optionD: '20+', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 4, 
+        matchId: match.id, 
+        questionText: 'What will be the run rate in the powerplay overs?', 
+        optionA: 'Under 6', 
+        optionB: '6-7', 
+        optionC: '7-8', 
+        optionD: '8+', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 5, 
+        matchId: match.id, 
+        questionText: 'Will there be a dropped catch in the match?', 
+        optionA: 'Yes', 
+        optionB: 'No', 
+        optionC: '', 
+        optionD: '', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+    ];
+  };
 
   const loadMatchData = useCallback(async () => {
     if (!matchId) return;
@@ -84,12 +151,14 @@ const MatchPrediction: React.FC = () => {
           const questions = await apiService.getQuizQuestionsForMatch(parseInt(matchId));
           if (questions && questions.length > 0) {
             setQuizQuestions(questions);
-          } else {
-            setQuizQuestions(defaultQuizQuestions);
+          } else if (matchData) {
+            setQuizQuestions(getDefaultQuestionsForMatch(matchData));
           }
         } catch (e) {
           console.log('Quiz questions load error:', e);
-          setQuizQuestions(defaultQuizQuestions);
+          if (matchData) {
+            setQuizQuestions(getDefaultQuestionsForMatch(matchData));
+          }
         }
       } else {
         console.log('Missing team IDs:', matchData.homeTeamId, matchData.awayTeamId, matchData.homeTeamName, matchData.awayTeamName);
@@ -195,21 +264,21 @@ const MatchPrediction: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-spotify-dark">
-      <header className="bg-spotify-surface border-b border-spotify-surfaceLight">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <h1 className="text-3xl font-bold text-spotify-green">Make Prediction</h1>
-            </div>
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-4 py-2 rounded-full text-sm font-medium"
-            >
-              Back to Dashboard
-            </button>
-          </div>
-        </div>
-      </header>
+       <header className="bg-spotify-surface border-b border-spotify-surfaceLight">
+         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+           <div className="flex justify-between items-center py-4 sm:py-6">
+             <div className="flex items-center">
+               <h1 className="text-xl sm:text-3xl font-bold text-spotify-green truncate">Make Prediction</h1>
+             </div>
+             <button
+               onClick={() => navigate('/dashboard')}
+               className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap"
+             >
+               Back to Dashboard
+             </button>
+           </div>
+         </div>
+       </header>
 
       <main className="max-w-3xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {error && (
@@ -224,41 +293,48 @@ const MatchPrediction: React.FC = () => {
           </div>
         )}
 
-        <div className="bg-spotify-surface border border-spotify-surfaceLight rounded-lg overflow-hidden">
-          <div className="p-8">
-            <div className="flex items-center justify-between mb-6">
-              <span className={`px-3 py-1 text-sm font-medium rounded-full ${
-                match.matchStatus === 'COMPLETED' ? 'bg-spotify-green text-black' :
-                match.matchStatus === 'LIVE' ? 'bg-red-500 text-white' :
-                'bg-yellow-500 text-black'
-              }`}>
-                {match.matchStatus}
-              </span>
-              <span className="text-sm text-spotify-textMuted">
+        <div className="bg-spotify-surface border border-spotify-surfaceLight rounded-lg overflow-hidden mx-auto max-w-2xl sm:max-w-3xl">
+          <div className="p-4 sm:p-8">
+            {/* Match Status & Date */}
+            <div className="flex flex-col sm:flex-row items-start justify-between mb-4 sm:mb-6 gap-2">
+              <div>
+                <span className={`px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium rounded-full ${
+                  match.matchStatus === 'COMPLETED' ? 'bg-spotify-green text-black' :
+                  match.matchStatus === 'LIVE' ? 'bg-red-500 text-white' :
+                  'bg-yellow-500 text-black'
+                }`}>
+                  {match.matchStatus}
+                </span>
+              </div>
+              <div className="text-xs sm:text-sm text-spotify-textMuted text-right">
                 {new Date(match.matchDate).toLocaleDateString()} at {match.venue}
-              </span>
-            </div>
-
-            <div className="text-center mb-8">
-              <div className="flex items-center justify-center space-x-4 mb-2">
-                {match.homeTeamLogoUrl && (
-                  <img src={match.homeTeamLogoUrl} alt={match.homeTeamShortName} className="w-24 h-24 object-contain" />
-                )}
-                <h2 className="text-3xl font-bold text-spotify-text">
-                  {match.homeTeamShortName} vs {match.awayTeamShortName}
-                </h2>
-                {match.awayTeamLogoUrl && (
-                  <img src={match.awayTeamLogoUrl} alt={match.awayTeamShortName} className="w-24 h-24 object-contain" />
-                )}
               </div>
             </div>
 
+             <div className="text-center mb-8">
+               <div className="flex flex-col items-center justify-center mb-4">
+                 <div className="flex items-center space-x-3 sm:space-x-6 mb-2">
+                   {match.homeTeamLogoUrl && (
+                     <img src={match.homeTeamLogoUrl} alt={match.homeTeamShortName} className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
+                   )}
+                   <div className="flex items-center space-x-2">
+                     <span className="text-xl sm:text-2xl font-bold text-spotify-text">{match.homeTeamShortName}</span>
+                     <span className="text-spotify-textMuted">vs</span>
+                     <span className="text-xl sm:text-2xl font-bold text-spotify-text">{match.awayTeamShortName}</span>
+                   </div>
+                   {match.awayTeamLogoUrl && (
+                     <img src={match.awayTeamLogoUrl} alt={match.awayTeamShortName} className="w-16 h-16 sm:w-20 sm:h-20 object-contain" />
+                   )}
+                 </div>
+               </div>
+             </div>
+
             {match.homeWinProbability && match.awayWinProbability && (
-              <div className="mb-8">
-                <p className="text-sm text-spotify-textSecondary mb-3">Win Probability:</p>
-                <div className="flex items-center space-x-4">
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm text-spotify-text mb-1">
+              <div className="mb-6 sm:mb-8">
+                <p className="text-xs sm:text-sm text-spotify-textSecondary mb-3">Win Probability:</p>
+                <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+                  <div className="w-full sm:flex-1">
+                    <div className="flex justify-between text-xs sm:text-sm text-spotify-text mb-1">
                       <span>{match.homeTeamShortName}</span>
                       <span>{match.homeWinProbability}%</span>
                     </div>
@@ -269,8 +345,8 @@ const MatchPrediction: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex justify-between text-sm text-spotify-text mb-1">
+                  <div className="w-full sm:flex-1">
+                    <div className="flex justify-between text-xs sm:text-sm text-spotify-text mb-1">
                       <span>{match.awayTeamShortName}</span>
                       <span>{match.awayWinProbability}%</span>
                     </div>
@@ -313,35 +389,35 @@ const MatchPrediction: React.FC = () => {
               </div>
             )}
 
-            {isPredictionOpen && !hasPredicted && isTodayMatch && (
-              <div className="text-center">
-                <p className="text-lg text-spotify-textSecondary mb-4">
-                  Choose your winner:
-                </p>
-                <div className="flex space-x-4">
-                  <button
-                    onClick={() => handlePrediction(match.homeTeamId)}
-                    disabled={submitting}
-                    className="flex-1 bg-spotify-green hover:bg-spotify-greenHover text-black py-4 px-6 rounded-full text-lg font-bold disabled:opacity-50 flex flex-col items-center"
-                  >
-                    {match.homeTeamLogoUrl && (
-                      <img src={match.homeTeamLogoUrl} alt={match.homeTeamShortName} className="w-20 h-20 object-contain mb-2" />
-                    )}
-                    {match.homeTeamShortName}
-                  </button>
-                  <button
-                    onClick={() => handlePrediction(match.awayTeamId)}
-                    disabled={submitting}
-                    className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text py-4 px-6 rounded-full text-lg font-bold disabled:opacity-50 flex flex-col items-center"
-                  >
-                    {match.awayTeamLogoUrl && (
-                      <img src={match.awayTeamLogoUrl} alt={match.awayTeamShortName} className="w-20 h-20 object-contain mb-2" />
-                    )}
-                    {match.awayTeamShortName}
-                  </button>
-                </div>
-              </div>
-            )}
+             {isPredictionOpen && !hasPredicted && isTodayMatch && (
+               <div className="text-center">
+                 <p className="text-lg text-spotify-textSecondary mb-6">
+                   Choose your winner:
+                 </p>
+                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                   <button
+                     onClick={() => handlePrediction(match.homeTeamId)}
+                     disabled={submitting}
+                     className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-greenHover text-white py-4 px-6 rounded-2xl text-lg font-bold disabled:opacity-50 flex flex-col items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-95"
+                   >
+                     {match.homeTeamLogoUrl && (
+                       <img src={match.homeTeamLogoUrl} alt={match.homeTeamShortName} className="w-16 h-16 object-contain mb-2" />
+                     )}
+                     <span className="text-sm sm:text-base">{match.homeTeamShortName}</span>
+                   </button>
+                   <button
+                     onClick={() => handlePrediction(match.awayTeamId)}
+                     disabled={submitting}
+                     className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-greenHover text-white py-4 px-6 rounded-2xl text-lg font-bold disabled:opacity-50 flex flex-col items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-95"
+                   >
+                     {match.awayTeamLogoUrl && (
+                       <img src={match.awayTeamLogoUrl} alt={match.awayTeamShortName} className="w-16 h-16 object-contain mb-2" />
+                     )}
+                     <span className="text-sm sm:text-base">{match.awayTeamShortName}</span>
+                   </button>
+                 </div>
+               </div>
+             )}
 
             {!isPredictionOpen && !hasPredicted && (
               <div className="text-center p-4 bg-spotify-dark rounded-lg">
@@ -363,51 +439,55 @@ const MatchPrediction: React.FC = () => {
 
         <div className="mt-8 bg-spotify-surface border border-spotify-surfaceLight rounded-lg overflow-hidden">
           <div className="border-b border-spotify-surfaceLight">
-            <nav className="flex justify-center space-x-8" aria-label="Tabs">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`whitespace-nowrap py-4 px-4 border-b-2 font-medium text-sm transition-colors ${
-                    tab.current
-                      ? 'border-spotify-green text-spotify-green'
-                      : 'border-transparent text-spotify-textMuted hover:text-spotify-text'
-                  }`}
-                >
-                  {tab.name}
-                </button>
+            <nav className="tab-scroll flex flex-nowrap justify-start overflow-x-auto whitespace-nowrap space-x-2 sm:overflow-visible sm:whitespace-normal sm:justify-center sm:space-x-8" aria-label="Tabs">
+              {tabs.map((tab, index) => (
+                <div key={tab.id} className="flex items-center">
+                  <button
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-shrink-0 py-4 px-3 sm:px-4 border-b-2 font-medium text-xs sm:text-sm transition-colors ${
+                      tab.current
+                        ? 'border-spotify-green text-spotify-green'
+                        : 'border-transparent text-spotify-textMuted hover:text-spotify-text'
+                    }`}
+                  >
+                    {tab.name}
+                  </button>
+                  {index < tabs.length - 1 && (
+                    <span className="hidden sm:block h-6 w-px bg-spotify-surfaceLight mx-1" />
+                  )}
+                </div>
               ))}
             </nav>
           </div>
 
           <div className="p-6">
-            {activeTab === 'venue' && venueStats && (
-              <div>
-                <h3 className="text-lg font-medium text-spotify-text mb-4">{venueStats.stadium}, {venueStats.city}</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-spotify-dark p-4 rounded-lg">
-                    <p className="text-sm text-spotify-textMuted mb-1">Pitch Type</p>
-                    <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.pitchType}</p>
-                  </div>
-                  <div className="bg-spotify-dark p-4 rounded-lg">
-                    <p className="text-sm text-spotify-textMuted mb-1">Average Score</p>
-                    <p className="text-xl font-bold text-spotify-green">{venueStats.avgScore}</p>
-                  </div>
-                  <div className="bg-spotify-dark p-4 rounded-lg">
-                    <p className="text-sm text-spotify-textMuted mb-1">Chasing Win %</p>
-                    <p className="text-xl font-bold text-spotify-text">{venueStats.chasingWinPct}%</p>
-                  </div>
-                  <div className="bg-spotify-dark p-4 rounded-lg">
-                    <p className="text-sm text-spotify-textMuted mb-1">Dew Factor</p>
-                    <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.dewFactor}</p>
-                  </div>
-                  <div className="bg-spotify-dark p-4 rounded-lg col-span-2">
-                    <p className="text-sm text-spotify-textMuted mb-1">Boundary Size</p>
-                    <p className="text-lg font-medium text-spotify-text capitalize">{venueStats.boundarySize}</p>
-                  </div>
-                </div>
-              </div>
-            )}
+             {activeTab === 'venue' && venueStats && (
+               <div>
+                 <h3 className="text-lg font-medium text-spotify-text mb-4">{venueStats.stadium}, {venueStats.city}</h3>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div className="bg-spotify-dark p-4 rounded-lg">
+                     <p className="text-sm text-spotify-textMuted mb-1">Pitch Type</p>
+                     <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.pitchType}</p>
+                   </div>
+                   <div className="bg-spotify-dark p-4 rounded-lg">
+                     <p className="text-sm text-spotify-textMuted mb-1">Average Score</p>
+                     <p className="text-xl font-bold text-spotify-green">{venueStats.avgScore}</p>
+                   </div>
+                   <div className="bg-spotify-dark p-4 rounded-lg">
+                     <p className="text-sm text-spotify-textMuted mb-1">Chasing Win %</p>
+                     <p className="text-xl font-bold text-spotify-text">{venueStats.chasingWinPct}%</p>
+                   </div>
+                   <div className="bg-spotify-dark p-4 rounded-lg">
+                     <p className="text-sm text-spotify-textMuted mb-1">Dew Factor</p>
+                     <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.dewFactor}</p>
+                   </div>
+                   <div className="bg-spotify-dark p-4 rounded-lg col-span-1 sm:col-span-2">
+                     <p className="text-sm text-spotify-textMuted mb-1">Boundary Size</p>
+                     <p className="text-lg font-medium text-spotify-text capitalize">{venueStats.boundarySize}</p>
+                   </div>
+                 </div>
+               </div>
+             )}
 
             {activeTab === 'venue' && !venueStats && (
               <div className="text-center">
@@ -549,15 +629,15 @@ const MatchPrediction: React.FC = () => {
                     <p className="text-spotify-textMuted">No quiz questions available</p>
                   )}
                   
-                  {quizQuestions.length > 0 && (
-                    <button
-                      onClick={handleQuizSubmit}
-                      disabled={submitting || Object.keys(quizAnswers).length < quizQuestions.length}
-                      className="w-full bg-spotify-green hover:bg-spotify-greenHover text-black py-3 px-6 rounded-full text-lg font-bold disabled:opacity-50 transition-colors"
-                    >
-                      {submitting ? 'Submitting...' : 'Submit Quiz Answers'}
-                    </button>
-                  )}
+                   {quizQuestions.length > 0 && (
+                     <button
+                       onClick={handleQuizSubmit}
+                       disabled={submitting || Object.keys(quizAnswers).length < quizQuestions.length}
+                       className="w-full bg-spotify-green hover:bg-spotify-greenHover text-black py-3 px-6 rounded-full text-lg font-bold disabled:opacity-50 transition-colors transition-transform duration-200 hover:scale-[1.02]"
+                     >
+                       {submitting ? 'Submitting...' : 'Submit Quiz Answers'}
+                     </button>
+                   )}
                 </div>
               ) : (
                 <div className="text-center py-4">

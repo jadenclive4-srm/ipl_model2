@@ -28,10 +28,15 @@ public class UserPointsService {
         
         if (existing.isPresent()) {
             UserPoints up = existing.get();
-            up.setTotalPoints(up.getTotalPoints() + pointsToAdd.longValue());
+            Long currentTotal = up.getTotalPoints();
+            if (currentTotal == null) {
+                currentTotal = 0L;
+            }
+            Long newTotal = currentTotal + pointsToAdd.longValue();
+            up.setTotalPoints(newTotal);
             up.setLastUpdated(System.currentTimeMillis());
             userPointsRepository.save(up);
-            System.out.println("Updated existing userPoints for userId=" + userId + ", new total=" + up.getTotalPoints());
+            System.out.println("Updated existing userPoints for userId=" + userId + ", new total=" + newTotal);
         } else {
             // Try H2 first, then MongoDB to get username/fullName
             Optional<User> h2User = userRepository.findById(userId);
@@ -65,17 +70,21 @@ public class UserPointsService {
                 // Get existing points from H2 user or default to 0
                 Integer existingPoints = 0;
                 if (h2User.isPresent()) {
-                    existingPoints = h2User.get().getPoints();
+                    Integer h2Points = h2User.get().getPoints();
+                    if (h2Points != null) {
+                        existingPoints = h2Points;
+                    }
                 }
                 
-                newPoints.setTotalPoints(existingPoints.longValue() + pointsToAdd.longValue());
+                Long total = existingPoints.longValue() + pointsToAdd.longValue();
+                newPoints.setTotalPoints(total);
                 newPoints.setTotalPredictions(0);
                 newPoints.setCorrectPredictions(0);
                 newPoints.setLastUpdated(System.currentTimeMillis());
                 userPointsRepository.save(newPoints);
                 System.out.println("Created new userPoints for userId=" + userId + ", username=" + username + 
                                  ", existing points=" + existingPoints + ", added=" + pointsToAdd + 
-                                 ", total=" + (existingPoints + pointsToAdd));
+                                 ", total=" + total);
             } else {
                 System.err.println("User not found in H2 or MongoDB for userId=" + userId);
             }
@@ -128,7 +137,10 @@ public class UserPointsService {
             // Update username/name in case changed
             up.setUsername(username);
             up.setFullName(fullName);
-            up.setTotalPoints(points != null ? Long.valueOf(points) : 0L);
+            // CRITICAL FIX: Preserve existing totalPoints from MongoDB!
+            // Do NOT overwrite with stale H2 points field.
+            // Only update lastUpdated to keep record fresh.
+            up.setLastUpdated(System.currentTimeMillis());
             userPointsRepository.save(up);
         }
     }

@@ -58,7 +58,15 @@ public class MatchController {
                 .map(match -> ResponseEntity.ok(convertToDTO(match)))
                 .orElse(ResponseEntity.notFound().build());
     }
-    
+
+    @GetMapping("/today/all")
+    public ResponseEntity<List<MatchDTO>> getTodaysMatches() {
+        List<MatchDTO> matches = matchService.getTodaysMatches().stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(matches);
+    }
+
     @GetMapping("/upcoming")
     public ResponseEntity<List<MatchDTO>> getUpcomingMatches() {
         List<MatchDTO> matches = matchService.getUpcomingMatches().stream()

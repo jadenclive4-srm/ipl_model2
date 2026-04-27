@@ -104,10 +104,16 @@ public class QuestionController {
     
     @PostMapping("/evaluate/match/{matchId}")
     public ResponseEntity<Map<String, String>> evaluateQuizAnswers(@PathVariable Long matchId) {
-        questionService.evaluateQuizAnswers(matchId);
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Quiz answers evaluated successfully");
-        return ResponseEntity.ok(response);
+        try {
+            questionService.evaluateQuizAnswers(matchId);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Quiz answers evaluated successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(errorResponse);
+        }
     }
     
     @PostMapping("/reset/match/{matchId}")
@@ -119,11 +125,13 @@ public class QuestionController {
     }
     
     @PostMapping("/match/{matchId}/correct-answers")
-    public ResponseEntity<String> saveCorrectAnswers(
+    public ResponseEntity<Map<String, String>> saveCorrectAnswers(
             @PathVariable Long matchId,
             @RequestBody Map<String, String> correctAnswers) {
         questionService.saveCorrectAnswersToMongo(matchId, correctAnswers);
-        return ResponseEntity.ok("Correct answers saved successfully");
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Correct answers saved successfully");
+        return ResponseEntity.ok(response);
     }
     
     @GetMapping("/match/{matchId}/correct-answers")

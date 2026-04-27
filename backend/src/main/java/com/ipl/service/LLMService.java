@@ -49,6 +49,7 @@ public class LLMService {
     
     public String generateResponse(String userQuery, Map<String, Object> predictionData) {
         if (apiKey == null || apiKey.isBlank()) {
+            log.warn("Gemini API key is not configured. Using fallback response.");
             return generateFallbackResponse(userQuery, predictionData);
         }
         
@@ -61,12 +62,12 @@ Team1 Probability: %d%%
 Team2 Probability: %d%%
 Reasons: %s
 """,
-                predictionData.get("team1"),
-                predictionData.get("team2"),
-                predictionData.get("winner"),
-                predictionData.get("team1Probability"),
-                predictionData.get("team2Probability"),
-                predictionData.get("reasons")
+                    predictionData.get("team1"),
+                    predictionData.get("team2"),
+                    predictionData.get("winner"),
+                    predictionData.get("team1Probability"),
+                    predictionData.get("team2Probability"),
+                    predictionData.get("reasons")
             );
 
             String prompt = """

@@ -127,6 +127,10 @@ class ApiService {
     return this.request<Match>(`/api/matches/today/for-evaluation?_t=${timestamp}`);
   }
 
+  async getTodaysMatches(): Promise<Match[]> {
+    return this.request<Match[]>('/api/matches/today/all');
+  }
+
   async getUpcomingMatches(): Promise<Match[]> {
     return this.request<Match[]>('/api/matches/upcoming');
   }

@@ -1,6 +1,6 @@
 // frontend22/src/pages/Admin.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { Match, Prediction, Question, Team, UserPredictionSummary } from '../types/api';
@@ -10,8 +10,9 @@ const Admin: React.FC = () => {
   const [importStatus, setImportStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  const [todayMatch, setTodayMatch] = useState<Match | null>(null);
+   
+  const [todayMatches, setTodayMatches] = useState<Match[]>([]);
+  const [selectedMatchId, setSelectedMatchId] = useState<number | null>(null);
   const [allPredictions, setAllPredictions] = useState<Prediction[]>([]);
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -20,13 +21,80 @@ const Admin: React.FC = () => {
   const [usersWithPredictions, setUsersWithPredictions] = useState<UserPredictionSummary[]>([]);
   const [filterDate, setFilterDate] = useState<string>('');
   
-  const defaultQuizQuestions: Question[] = [
-    { id: 1, matchId: 0, questionText: 'How many wickets will fall in the powerplay (first 6 overs)?', optionA: '0-2', optionB: '3-4', optionC: '5-6', optionD: '7+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 2, matchId: 0, questionText: 'What will be the highest individual score in the match?', optionA: 'Under 30', optionB: '30-50', optionC: '50-70', optionD: '70+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 3, matchId: 0, questionText: 'How many boundaries (4s and 6s) will be hit in total?', optionA: 'Under 10', optionB: '10-15', optionC: '15-20', optionD: '20+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 4, matchId: 0, questionText: 'What will be the run rate in the powerplay overs?', optionA: 'Under 6', optionB: '6-7', optionC: '7-8', optionD: '8+', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-    { id: 5, matchId: 0, questionText: 'Will there be a dropped catch in the match?', optionA: 'Yes', optionB: 'No', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-  ];
+  const getDefaultQuestionsForMatch = (match: Match): Question[] => {
+    return [
+      { 
+        id: 1, 
+        matchId: match.id, 
+        questionText: `Who will win the toss today?`, 
+        optionA: match.homeTeamShortName || match.homeTeamName, 
+        optionB: match.awayTeamShortName || match.awayTeamName, 
+        optionC: '', 
+        optionD: '', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 2, 
+        matchId: match.id, 
+        questionText: 'What will be the highest individual score in the match?', 
+        optionA: 'Under 30', 
+        optionB: '30-50', 
+        optionC: '50-70', 
+        optionD: '70+', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 3, 
+        matchId: match.id, 
+        questionText: 'How many boundaries (4s and 6s) will be hit in total?', 
+        optionA: 'Under 10', 
+        optionB: '10-15', 
+        optionC: '15-20', 
+        optionD: '20+', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 4, 
+        matchId: match.id, 
+        questionText: 'What will be the run rate in the powerplay overs?', 
+        optionA: 'Under 6', 
+        optionB: '6-7', 
+        optionC: '7-8', 
+        optionD: '8+', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+      { 
+        id: 5, 
+        matchId: match.id, 
+        questionText: 'Will there be a dropped catch in the match?', 
+        optionA: 'Yes', 
+        optionB: 'No', 
+        optionC: '', 
+        optionD: '', 
+        correctOption: '', 
+        pointsValue: 10, 
+        isActive: true, 
+        questionType: 'QUIZ', 
+        createdAt: 0 
+      },
+    ];
+  };
 
   // New quiz question form state
   const [newQuestions, setNewQuestions] = useState<Question[]>([
@@ -37,104 +105,12 @@ const Admin: React.FC = () => {
     { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
   ]);
 
-  // Check if user is admin
   const isAdmin = user?.role === 'ADMIN';
 
-  useEffect(() => {
-    if (!isAdmin) return;
-    loadTodayMatch();
-    loadTeams();
-    loadUsersWithPredictions();
-  }, [isAdmin]);
+  const selectedMatch = todayMatches.find(m => m.id === selectedMatchId) || null;
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-red-600">Access denied. Admin privileges required.</div>
-      </div>
-    );
-  }
-
-  const loadTodayMatch = async () => {
-    try {
-      const allMatches = await apiService.getAllMatches().catch(() => []);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      const now = Date.now();
-      
-      if (todayMatch) {
-        const currentMatchInAllMatches = allMatches.find(m => m.id === todayMatch.id);
-        if (currentMatchInAllMatches) {
-          const currentMatchDate = new Date(currentMatchInAllMatches.matchDate);
-          if (currentMatchDate >= today && currentMatchDate < tomorrow) {
-            setTodayMatch(currentMatchInAllMatches);
-            loadMatchData(currentMatchInAllMatches.id);
-            return;
-          }
-        }
-      }
-      
-      let todayMatchData = null;
-      
-      for (const m of allMatches) {
-        const matchDate = new Date(m.matchDate);
-        if (matchDate >= today && matchDate < tomorrow) {
-          todayMatchData = m;
-          break;
-        }
-      }
-      
-      if (!todayMatchData && allMatches.length > 0) {
-        for (const m of allMatches) {
-          const matchDate = new Date(m.matchDate);
-          if (matchDate.getTime() >= now) {
-            todayMatchData = m;
-            break;
-          }
-        }
-      }
-      
-      setTodayMatch(todayMatchData);
-      if (todayMatchData) {
-        loadMatchData(todayMatchData.id);
-      }
-    } catch (error) {
-      console.error('Error loading today match:', error);
-    }
-  };
-
-  const loadTeams = async () => {
-    try {
-      const teamsData = await apiService.getAllTeams();
-      setTeams(teamsData);
-    } catch (error) {
-      console.error('Error loading teams:', error);
-    }
-  };
-
-  const loadUsersWithPredictions = async (date?: string) => {
-    try {
-      let data: UserPredictionSummary[];
-      if (date) {
-        data = await apiService.getPredictionsByDate(date);
-      } else {
-        data = await apiService.getAllUsersWithPredictions();
-      }
-      setUsersWithPredictions(data);
-    } catch (error) {
-      console.error('Error loading users with predictions:', error);
-    }
-  };
-
-  const handleFilterByDate = async () => {
-    if (filterDate) {
-      await loadUsersWithPredictions(filterDate);
-    }
-  };
-
-  const loadMatchData = async (matchId: number) => {
+  const loadMatchData = useCallback(async (matchId: number) => {
+    if (!selectedMatch) return;
     try {
       const [predictions, questions] = await Promise.all([
         apiService.getAllPredictionsForMatch(matchId),
@@ -142,7 +118,10 @@ const Admin: React.FC = () => {
       ]);
       setAllPredictions(predictions);
       
-      const loadedQuestions = questions && questions.length > 0 ? questions : defaultQuizQuestions;
+      let loadedQuestions = questions && questions.length > 0 ? questions : [];
+      if (loadedQuestions.length === 0) {
+        loadedQuestions = getDefaultQuestionsForMatch(selectedMatch);
+      }
       setQuizQuestions(loadedQuestions);
       
       const answers: Record<string, string> = {};
@@ -154,6 +133,266 @@ const Admin: React.FC = () => {
       setSelectedAnswers(answers);
     } catch (error) {
       console.error('Error loading match data:', error);
+    }
+  }, [selectedMatch]);
+
+  const loadTodayMatch = useCallback(async () => {
+    try {
+      const allMatches = await apiService.getAllMatches().catch(() => []);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const now = Date.now();
+      
+      let todaysMatches: Match[] = [];
+      
+      for (const m of allMatches) {
+        const matchDate = new Date(m.matchDate);
+        if (matchDate >= today && matchDate < tomorrow) {
+          todaysMatches.push(m);
+        }
+      }
+      
+      // Sort by matchDate ascending
+      todaysMatches.sort((a, b) => new Date(a.matchDate).getTime() - new Date(b.matchDate).getTime());
+      
+      setTodayMatches(todaysMatches);
+      
+      // Set selected match
+      if (todaysMatches.length > 0) {
+        // Try to keep current selection if still valid
+        if (selectedMatchId && todaysMatches.some(m => m.id === selectedMatchId)) {
+          // keep existing
+        } else {
+          // Select first match that hasn't started or is live
+          const upcomingMatch = todaysMatches.find(m => 
+            new Date(m.matchDate).getTime() > now || m.matchStatus === 'LIVE'
+          );
+          setSelectedMatchId(upcomingMatch ? upcomingMatch.id : todaysMatches[0].id);
+        }
+      } else {
+        setSelectedMatchId(null);
+      }
+    } catch (error) {
+      console.error('Error loading today match:', error);
+    }
+  }, [selectedMatchId]);
+
+  const loadTeams = useCallback(async () => {
+    try {
+      const teamsData = await apiService.getAllTeams();
+      setTeams(teamsData);
+    } catch (error) {
+      console.error('Error loading teams:', error);
+    }
+  }, []);
+
+  const loadUsersWithPredictions = useCallback(async (date?: string) => {
+    try {
+      let data: UserPredictionSummary[];
+      if (date) {
+        data = await apiService.getPredictionsByDate(date);
+      } else {
+        data = await apiService.getAllUsersWithPredictions();
+      }
+      setUsersWithPredictions(data);
+    } catch (error) {
+      console.error('Error loading users with predictions:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    loadTodayMatch();
+    loadTeams();
+    loadUsersWithPredictions();
+  }, [isAdmin, loadTodayMatch, loadTeams, loadUsersWithPredictions]);
+
+  useEffect(() => {
+    if (selectedMatchId) {
+      loadMatchData(selectedMatchId);
+    }
+  }, [selectedMatchId, loadMatchData]);
+
+  // Reset form fields when selected match changes
+  useEffect(() => {
+    setSelectedWinner('');
+    setSelectedAnswers({});
+    if (selectedMatch) {
+      const defaults = getDefaultQuestionsForMatch(selectedMatch);
+      // For new questions to be uploaded, keep id=0 to indicate creation
+      setNewQuestions(defaults.map(q => ({
+        ...q,
+        id: 0,
+        correctOption: '',
+        createdAt: 0
+      })));
+    } else {
+      setNewQuestions([
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+      ]);
+    }
+  }, [selectedMatchId, selectedMatch]);
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-xl text-red-600">Access denied. Admin privileges required.</div>
+      </div>
+    );
+  }
+
+  const handleSetWinner = async () => {
+    if (!selectedMatch || !selectedWinner) return;
+    
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      await apiService.updateMatchResult(selectedMatch.id, {
+        winnerTeamName: selectedWinner === 'home' 
+          ? selectedMatch.homeTeamName 
+          : selectedMatch.awayTeamName,
+      });
+      setImportStatus('Match winner set successfully. Predictions evaluated.');
+      
+      await apiService.evaluatePredictions(selectedMatch.id);
+      
+      const updatedMatch = await apiService.getMatchById(selectedMatch.id);
+      setTodayMatches(prev => prev.map(m => m.id === updatedMatch.id ? updatedMatch : m));
+      loadMatchData(updatedMatch.id);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to set winner');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateQuestionAnswer = (questionId: number, correctOption: string) => {
+    setSelectedAnswers(prev => ({ ...prev, [questionId.toString()]: correctOption }));
+  };
+
+  const handleSaveCorrectAnswers = async () => {
+    if (!selectedMatch || Object.keys(selectedAnswers).length === 0) return;
+    
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      await apiService.saveCorrectAnswers(selectedMatch.id, selectedAnswers);
+      setImportStatus('Correct answers saved to database.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to save answers');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+   const handleEvaluateQuiz = async () => {
+     if (!selectedMatch) return;
+     if (Object.keys(selectedAnswers).length === 0) {
+       setError('Please set correct answers for all questions before evaluating.');
+       return;
+     }
+     setLoading(true);
+     setError('');
+     setImportStatus('');
+
+     try {
+       // First save the correct answers to ensure they are in the database
+       await apiService.saveCorrectAnswers(selectedMatch.id, selectedAnswers);
+       // Then evaluate the quiz
+       await apiService.evaluateQuizAnswers(selectedMatch.id);
+       setImportStatus('Quiz answers evaluated and points awarded.');
+     } catch (error) {
+       setError(error instanceof Error ? error.message : 'Failed to evaluate quiz');
+     } finally {
+       setLoading(false);
+     }
+   };
+
+  const handleResetQuiz = async () => {
+    if (!selectedMatch) return;
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      await apiService.resetQuizAnswers(selectedMatch.id);
+      setImportStatus('Quiz answers have been reset.');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to reset quiz');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetAll = async () => {
+    if (!selectedMatch) return;
+    
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      await apiService.resetPredictions(selectedMatch.id);
+      await apiService.resetQuizAnswers(selectedMatch.id);
+      const resetMatch = await apiService.resetMatchResult(selectedMatch.id);
+      setImportStatus('All predictions, quiz answers, and match result have been reset.');
+      setTodayMatches(prev => prev.map(m => m.id === resetMatch.id ? resetMatch : m));
+      loadMatchData(selectedMatch.id);
+      loadUsersWithPredictions();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to reset');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateNewQuestion = (index: number, field: keyof Question, value: string | number) => {
+    setNewQuestions(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const handleUploadQuizQuestions = async () => {
+    if (!selectedMatch) return;
+    
+    const validQuestions = newQuestions.filter(q => q.questionText && q.optionA && q.optionB);
+    if (validQuestions.length === 0) {
+      setError('Please add at least one question with options');
+      return;
+    }
+    
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      const valid = validQuestions.map(q => ({ ...q, matchId: selectedMatch.id }));
+      await apiService.uploadQuizQuestions(selectedMatch.id, valid);
+      setImportStatus(`Successfully uploaded ${valid.length} quiz questions.`);
+      setNewQuestions([
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
+      ]);
+      loadMatchData(selectedMatch.id);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to upload quiz questions');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -190,144 +429,9 @@ const Admin: React.FC = () => {
     }
   };
 
-  const handleSetWinner = async () => {
-    if (!todayMatch || !selectedWinner) return;
-    
-    setLoading(true);
-    setError('');
-    setImportStatus('');
-
-    try {
-      await apiService.updateMatchResult(todayMatch.id, {
-        winnerTeamName: selectedWinner === 'home' 
-          ? todayMatch.homeTeamName 
-          : todayMatch.awayTeamName,
-      });
-      setImportStatus('Match winner set successfully. Predictions evaluated.');
-      
-      await apiService.evaluatePredictions(todayMatch.id);
-      
-      const updatedMatch = await apiService.getMatchById(todayMatch.id);
-      setTodayMatch(updatedMatch);
-      loadMatchData(updatedMatch.id);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to set winner');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateQuestionAnswer = async (questionId: number, correctOption: string) => {
-    setSelectedAnswers(prev => ({ ...prev, [questionId.toString()]: correctOption }));
-  };
-
-  const handleSaveCorrectAnswers = async () => {
-    if (!todayMatch || Object.keys(selectedAnswers).length === 0) return;
-    
-    setLoading(true);
-    setError('');
-    setImportStatus('');
-
-    try {
-      await apiService.saveCorrectAnswers(todayMatch.id, selectedAnswers);
-      setImportStatus('Correct answers saved to database.');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to save answers');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEvaluateQuiz = async () => {
-    if (!todayMatch) return;
-    setLoading(true);
-    setError('');
-    setImportStatus('');
-
-    try {
-      await apiService.evaluateQuizAnswers(todayMatch.id);
-      setImportStatus('Quiz answers evaluated and points awarded.');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to evaluate quiz');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetQuiz = async () => {
-    if (!todayMatch) return;
-    setLoading(true);
-    setError('');
-    setImportStatus('');
-
-    try {
-      await apiService.resetQuizAnswers(todayMatch.id);
-      setImportStatus('Quiz answers have been reset.');
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reset quiz');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResetAll = async () => {
-    if (!todayMatch) return;
-    
-    setLoading(true);
-    setError('');
-    setImportStatus('');
-
-    try {
-      await apiService.resetPredictions(todayMatch.id);
-      await apiService.resetQuizAnswers(todayMatch.id);
-      await apiService.resetMatchResult(todayMatch.id);
-      setImportStatus('All predictions, quiz answers, and match result have been reset.');
-      loadMatchData(todayMatch.id);
-      loadUsersWithPredictions();
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to reset');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleUpdateNewQuestion = (index: number, field: keyof Question, value: string | number) => {
-    setNewQuestions(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      return updated;
-    });
-  };
-
-  const handleUploadQuizQuestions = async () => {
-    if (!todayMatch) return;
-    
-    const validQuestions = newQuestions.filter(q => q.questionText && q.optionA && q.optionB);
-    if (validQuestions.length === 0) {
-      setError('Please add at least one question with options');
-      return;
-    }
-    
-    setLoading(true);
-    setError('');
-    setImportStatus('');
-
-    try {
-      const valid = validQuestions.map(q => ({ ...q, matchId: todayMatch.id }));
-      await apiService.uploadQuizQuestions(todayMatch.id, valid);
-      setImportStatus(`Successfully uploaded ${valid.length} quiz questions.`);
-      setNewQuestions([
-        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-        { id: 0, matchId: 0, questionText: '', optionA: '', optionB: '', optionC: '', optionD: '', correctOption: '', pointsValue: 10, isActive: true, questionType: 'QUIZ', createdAt: 0 },
-      ]);
-      loadMatchData(todayMatch.id);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to upload quiz questions');
-    } finally {
-      setLoading(false);
+  const handleFilterByDate = async () => {
+    if (filterDate) {
+      await loadUsersWithPredictions(filterDate);
     }
   };
 
@@ -359,23 +463,60 @@ const Admin: React.FC = () => {
           </div>
         )}
 
-        {/* Today's Match Section */}
+        {/* Today's Matches Section */}
         <div className="bg-white shadow rounded-lg mb-6">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Today's Match
+              Today's Matches
             </h3>
 
-            {todayMatch ? (
+            {/* Match Selector */}
+            {todayMatches.length > 0 && (
+              <div className="mb-4">
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {todayMatches.map(match => (
+                    <div 
+                      key={match.id}
+                      onClick={() => setSelectedMatchId(match.id)}
+                      className={`flex-shrink-0 cursor-pointer rounded-lg p-3 border-2 transition-all ${
+                        selectedMatchId === match.id 
+                          ? 'border-indigo-500 bg-indigo-50' 
+                          : 'border-gray-200 hover:border-gray-300 bg-white'
+                      }`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span className="font-bold">{match.homeTeamShortName}</span>
+                        <span className="text-gray-500">vs</span>
+                        <span className="font-bold">{match.awayTeamShortName}</span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(match.matchDate).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                      <div className="mt-1">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          match.matchStatus === 'COMPLETED' ? 'bg-green-100 text-green-800' :
+                          match.matchStatus === 'LIVE' ? 'bg-red-100 text-red-800' :
+                          'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {match.matchStatus}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedMatch ? (
               <div className="space-y-6">
                 <div className="flex items-center justify-between bg-gray-100 p-4 rounded-lg">
                   <div className="flex items-center space-x-4">
-                    <span className="text-xl font-bold">{todayMatch.homeTeamShortName}</span>
+                    <span className="text-xl font-bold">{selectedMatch.homeTeamShortName}</span>
                     <span className="text-gray-500">vs</span>
-                    <span className="text-xl font-bold">{todayMatch.awayTeamShortName}</span>
+                    <span className="text-xl font-bold">{selectedMatch.awayTeamShortName}</span>
                   </div>
                   <div className="text-sm text-gray-500">
-                    {new Date(todayMatch.matchDate).toLocaleString('en-IN', { 
+                    {new Date(selectedMatch.matchDate).toLocaleString('en-IN', { 
                       day: 'numeric', 
                       month: 'short',
                       hour: '2-digit',
@@ -394,8 +535,8 @@ const Admin: React.FC = () => {
                       disabled={loading}
                     >
                       <option value="">Select Winner</option>
-                      <option value="home">{todayMatch.homeTeamShortName} (Home)</option>
-                      <option value="away">{todayMatch.awayTeamShortName} (Away)</option>
+                      <option value="home">{selectedMatch.homeTeamShortName} (Home)</option>
+                      <option value="away">{selectedMatch.awayTeamShortName} (Away)</option>
                     </select>
                     <button
                       onClick={handleSetWinner}
@@ -478,10 +619,10 @@ const Admin: React.FC = () => {
         <div className="bg-white shadow rounded-lg mb-6">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Today's Quiz Questions
+              {selectedMatch ? `Quiz Questions: ${selectedMatch.homeTeamShortName} vs ${selectedMatch.awayTeamShortName}` : 'Today\'s Quiz Questions'}
             </h3>
 
-            {quizQuestions.length > 0 ? (
+            {selectedMatch && quizQuestions.length > 0 ? (
               <div className="space-y-4">
                 {quizQuestions.map((question, index) => (
                   <div key={question.id} className="border border-gray-200 rounded-lg p-4">

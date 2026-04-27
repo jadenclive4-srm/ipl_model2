@@ -17,87 +17,40 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<TabType>('matches');
   const [allMatches, setAllMatches] = useState<Match[]>([]);
-  const [todayMatch, setTodayMatch] = useState<Match | null>(null);
+  const [todayMatches, setTodayMatches] = useState<Match[]>([]);
   const [upcomingMatches, setUpcomingMatches] = useState<Match[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [userPoints, setUserPoints] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadMatchesData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [todayData, upcomingData, allMatchesData, predictionsData, pointsData] = await Promise.all([
-        apiService.getTodayMatch().catch(() => null),
-        apiService.getUpcomingMatches().catch(() => []),
-        apiService.getAllMatches(),
-        user ? apiService.getUserPredictions(user.id) : Promise.resolve([]),
-        user ? apiService.getUserPoints(user.id).catch(() => 0) : Promise.resolve(0),
-      ]);
-      
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      const now = Date.now();
-      
-      const findMatchForToday = (matches: Match[]): Match | null => {
-        let todayMatch: Match | null = null;
-        let earliestFuture: Match | null = null;
-        
-        for (const m of matches) {
-          const matchDate = new Date(m.matchDate);
-          const predictionCloseTime = matchDate.getTime() - (30 * 60 * 1000);
-          
-          if (matchDate >= today && matchDate < tomorrow) {
-            if (m.matchStatus !== 'COMPLETED' && now < predictionCloseTime) {
-              if (!todayMatch || matchDate.getTime() < new Date(todayMatch.matchDate).getTime()) {
-                todayMatch = m;
-              }
-            } else if (!todayMatch) {
-              todayMatch = m;
-            }
-          } else if (matchDate.getTime() >= now && m.matchStatus !== 'COMPLETED') {
-            if (!earliestFuture || matchDate.getTime() < new Date(earliestFuture.matchDate).getTime()) {
-              earliestFuture = m;
-            }
-          }
-        }
-        
-        return todayMatch || earliestFuture;
-      };
-      
-      let matchForToday: Match | null = null;
-      
-      if (todayMatch) {
-        const currentMatchInAllMatches = allMatchesData?.find(m => m.id === todayMatch.id);
-        const currentMatchDate = currentMatchInAllMatches ? new Date(currentMatchInAllMatches.matchDate) : new Date(todayMatch.matchDate);
-        const isTodayMatch = currentMatchDate >= today && currentMatchDate < tomorrow;
-        const currentMatchStillActive = currentMatchDate.getTime() > now;
-        
-        if (isTodayMatch) {
-          matchForToday = todayMatch;
-        } else if (!currentMatchStillActive) {
-          matchForToday = findMatchForToday(allMatchesData || []);
-        } else {
-          matchForToday = todayMatch;
-        }
-      } else {
-        matchForToday = findMatchForToday(allMatchesData || []);
-      }
-      
-      setTodayMatch(matchForToday);
-      setUpcomingMatches(upcomingData);
-      setAllMatches(allMatchesData);
-      setPredictions(predictionsData);
-      setUserPoints(pointsData);
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  }, [user]);
+   const loadMatchesData = useCallback(async () => {
+     try {
+       setLoading(true);
+       const [todaysData, upcomingData, allMatchesData, predictionsData, pointsData] = await Promise.all([
+         apiService.getTodaysMatches().catch(() => []),
+         apiService.getUpcomingMatches().catch(() => []),
+         apiService.getAllMatches(),
+         user ? apiService.getUserPredictions(user.id) : Promise.resolve([]),
+         user ? apiService.getUserPoints(user.id).catch(() => 0) : Promise.resolve(0),
+       ]);
+       
+       console.log('DEBUG - Todays matches:', todaysData);
+       console.log('DEBUG - Today length:', todaysData.length);
+       console.log('DEBUG - Upcoming:', upcomingData.length);
+       console.log('DEBUG - All matches:', allMatchesData.length);
+       
+       setTodayMatches(todaysData);
+       setUpcomingMatches(upcomingData.filter(m => !todaysData.some(tm => tm.id === m.id)));
+       setAllMatches(allMatchesData);
+       setPredictions(predictionsData);
+       setUserPoints(pointsData);
+     } catch (error) {
+       setError(error instanceof Error ? error.message : 'Failed to load data');
+     } finally {
+       setLoading(false);
+     }
+   }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -126,46 +79,59 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-spotify-dark">
       <header className="bg-spotify-surface border-b border-spotify-surfaceLight">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Mobile Layout - Title with buttons on sides */}
-          <div className="flex sm:hidden items-center justify-between py-4">
-            <button
-              onClick={() => user?.role === 'ADMIN' && navigate('/admin')}
-              className={`bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-3 py-1 rounded-full text-xs font-medium ${user?.role !== 'ADMIN' ? 'opacity-0 pointer-events-none' : ''}`}
-            >
-              Admin
-            </button>
-            <h1 className="text-lg font-bold text-spotify-green">IPL Predictor</h1>
-            <button
-              onClick={logout}
-              className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 py-1 rounded-full text-xs font-medium"
-            >
-              Logout
-            </button>
-          </div>
+           {/* Mobile Layout - Title with buttons on sides */}
+           <div className="flex sm:hidden items-center justify-between py-4">
+             <button
+               onClick={() => user?.role === 'ADMIN' && navigate('/admin')}
+               className={`bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-3 py-1 rounded-full text-xs font-medium ${user?.role !== 'ADMIN' ? 'opacity-0 pointer-events-none' : ''}`}
+             >
+               Admin
+             </button>
+            <div className="flex-1 text-center">
+                <h1 className="text-xl font-bold text-spotify-green">IPL Predictor</h1>
+                <div className="flex items-center justify-center space-x-2 mt-1">
+                    <span className="text-spotify-green font-semibold">Points:</span>
+                    <span className="bg-spotify-green/20 text-spotify-green px-2 py-0.5 rounded-full text-sm font-medium">
+                        {userPoints}
+                    </span>
+                </div>
+            </div>
+             <button
+               onClick={logout}
+               className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 py-1 rounded-full text-xs font-medium"
+             >
+               Logout
+             </button>
+           </div>
 
           {/* Desktop Layout */}
           <div className="hidden sm:flex sm:justify-between sm:items-center py-6">
             <div className="flex items-center">
                 <h1 className="text-xl md:text-2xl font-bold text-spotify-green">IPL Predictor</h1>
               </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
-              <span className="text-sm text-spotify-textMuted">Points: {userPoints}</span>
-              {user?.role === 'ADMIN' && (
-                <button
-                  onClick={() => navigate('/admin')}
-                  className="bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-4 py-2 rounded-full text-sm font-medium"
-                >
-                  Admin
-                </button>
-              )}
-              <button
-                onClick={logout}
-                className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-4 py-2 rounded-full text-sm font-medium"
-              >
-                Logout
-              </button>
-            </div>
+             <div className="flex items-center space-x-4">
+               <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
+               <div className="flex items-center space-x-2">
+                   <span className="text-spotify-green font-semibold">Points:</span>
+                   <span className="bg-spotify-green/20 text-spotify-green px-2 py-0.5 rounded-full text-sm font-medium">
+                       {userPoints}
+                   </span>
+               </div>
+               {user?.role === 'ADMIN' && (
+                 <button
+                   onClick={() => navigate('/admin')}
+                   className="bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-4 py-2 rounded-full text-sm font-medium"
+                 >
+                   Admin
+                 </button>
+               )}
+               <button
+                 onClick={logout}
+                 className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-4 py-2 rounded-full text-sm font-medium"
+               >
+                 Logout
+               </button>
+             </div>
           </div>
         </div>
       </header>
@@ -205,35 +171,39 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {todayMatch && (
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-bold text-spotify-text mb-4">Today's Match</h2>
-                      <div className="max-w-md mx-auto">
-                        <MatchCard
-                          match={todayMatch}
-                          userPrediction={getUserPredictionForMatch(todayMatch.id)}
-                          onPredictClick={() => navigate(`/predict/${todayMatch.id}`)}
-                          isLarge={true}
-                        />
+                    {todayMatches.length > 0 && (
+                      <div className="mb-8">
+                        <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Today's Matches</h2>
+                        <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-2 justify-items-center max-w-4xl mx-auto">
+                          {todayMatches.map((match) => (
+                            <div key={match.id} className="w-full max-w-md">
+                              <MatchCard
+                                match={match}
+                                userPrediction={getUserPredictionForMatch(match.id)}
+                                onPredictClick={() => navigate(`/predict/${match.id}`)}
+                                isLarge={true}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
 
-                  {upcomingMatches.length > 0 && (
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-bold text-spotify-text mb-4">Upcoming Matches</h2>
-                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {upcomingMatches.filter(m => !todayMatch || m.id !== todayMatch.id).slice(0, 3).map((match) => (
-                          <MatchCard
-                            key={match.id}
-                            match={match}
-                            userPrediction={getUserPredictionForMatch(match.id)}
-                            onPredictClick={() => navigate(`/predict/${match.id}`)}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                   {upcomingMatches.length > 0 && (
+                     <div className="mb-8">
+                       <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Upcoming Matches</h2>
+                       <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                          {upcomingMatches.filter(m => !todayMatches.some(tm => tm.id === m.id)).slice(0, 3).map((match) => (
+                           <MatchCard
+                             key={match.id}
+                             match={match}
+                             userPrediction={getUserPredictionForMatch(match.id)}
+                             onPredictClick={() => navigate(`/predict/${match.id}`)}
+                           />
+                         ))}
+                       </div>
+                     </div>
+                   )}
                 </>
               )}
             </>
