@@ -582,7 +582,7 @@ const MatchPrediction: React.FC = () => {
           </div>
         </div>
 
-        {isPredictionOpen && (
+        {isPredictionOpen && isTodayMatch && (
           <div className="mt-8 bg-spotify-surface border border-spotify-surfaceLight rounded-lg overflow-hidden">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
