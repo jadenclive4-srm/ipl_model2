@@ -210,6 +210,13 @@ class ApiService {
     });
   }
 
+  async createUser(userData: { username: string; email: string; password: string; fullName?: string; role?: string }): Promise<{ message: string; userId: number; username: string; email: string; role: string }> {
+    return this.request<{ message: string; userId: number; username: string; email: string; role: string }>('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
   // Prediction endpoints
   async createPrediction(predictionData: PredictionRequest): Promise<Prediction> {
     return this.request<Prediction>('/api/predictions', {

@@ -114,6 +114,32 @@ Response:
 ### Users
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
+- `POST /api/admin/users` - Admin: Create user directly (email, username, password)
+
+#### Admin Create User
+**POST** `/api/admin/users` - Create user directly in MongoDB only (no OTP verification)
+
+Request:
+```json
+{
+  "username": "newuser",
+  "email": "user@example.com",
+  "password": "password123",
+  "fullName": "New User",
+  "role": "USER"
+}
+```
+
+Response:
+```json
+{
+  "message": "User created successfully",
+  "userId": 123,
+  "username": "newuser",
+  "email": "user@example.com",
+  "role": "USER"
+}
+```
 
 🧪 Test Queries
 

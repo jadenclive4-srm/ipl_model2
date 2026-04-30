@@ -194,7 +194,67 @@ public class UserService implements UserDetailsService {
 
         return savedUser;
     }
-    
+
+    @Transactional
+    public UserMongo createUserMongoOnly(String username, String uniqueUserId, String email, String password, String fullName, String role) {
+        // Generate uniqueUserId if not provided
+        if (uniqueUserId == null || uniqueUserId.trim().isEmpty()) {
+            uniqueUserId = UUID.randomUUID().toString();
+        }
+
+        // Check MongoDB for duplicates
+        boolean mongoUsernameExists = false;
+        boolean mongoEmailExists = false;
+        try {
+            mongoUsernameExists = userMongoRepository.existsByUsername(username);
+            mongoEmailExists = userMongoRepository.existsByEmail(email);
+        } catch (Exception e) {
+            log.error("MongoDB check failed during user creation: username={}, email={}", username, email, e);
+            throw new RuntimeException("Database error: MongoDB is unreachable. Please check MongoDB connection.");
+        }
+
+        if (mongoUsernameExists) {
+            throw new RuntimeException("Username already exists in MongoDB");
+        }
+        if (mongoEmailExists) {
+            throw new RuntimeException("Email already exists in MongoDB");
+        }
+
+        // Generate unique ID for MongoDB (using timestamp + random)
+        long generatedId = System.currentTimeMillis() + new Random().nextInt(1000);
+
+        // Create MongoDB user only
+        UserMongo userMongo = new UserMongo();
+        userMongo.setId(generatedId);
+        userMongo.setUsername(username);
+        userMongo.setEmail(email);
+        userMongo.setUniqueUserId(uniqueUserId);
+        userMongo.setPassword(passwordEncoder.encode(password));
+        userMongo.setFullName(fullName);
+        userMongo.setPoints(0);
+        userMongo.setRank(0);
+        userMongo.setIsActive(true);
+        userMongo.setEmailVerified(true);
+        userMongo.setRole(role != null ? role : "USER");
+        userMongo.setCreatedAt(System.currentTimeMillis());
+        userMongo.setUpdatedAt(System.currentTimeMillis());
+
+        UserMongo savedUser = userMongoRepository.save(userMongo);
+
+        // Also create UserPoints entry so user appears in leaderboard with 0 points
+        try {
+            userPointsService.updateUserPoints(savedUser.getId(), 0);
+            log.info("Created UserPoints entry for new user: {}", savedUser.getUsername());
+        } catch (Exception e) {
+            log.warn("Failed to create UserPoints entry for user {}: {}", savedUser.getUsername(), e.getMessage());
+        }
+
+        log.info("User created in MongoDB only: id={}, username={}, email={}",
+            savedUser.getId(), savedUser.getUsername(), savedUser.getEmail());
+
+        return savedUser;
+    }
+
     public Optional<User> findByUsername(String username) {
         // First check H2
         Optional<User> h2User = userRepository.findByUsername(username);

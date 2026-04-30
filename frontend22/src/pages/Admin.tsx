@@ -20,6 +20,15 @@ const Admin: React.FC = () => {
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, string>>({});
   const [usersWithPredictions, setUsersWithPredictions] = useState<UserPredictionSummary[]>([]);
   const [filterDate, setFilterDate] = useState<string>('');
+
+  // User creation state
+  const [newUser, setNewUser] = useState({
+    username: '',
+    email: '',
+    password: '',
+    fullName: '',
+    role: 'USER'
+  });
   
   const getDefaultQuestionsForMatch = (match: Match): Question[] => {
     return [
@@ -435,6 +444,33 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUser.username || !newUser.email || !newUser.password) {
+      setError('Username, email, and password are required');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      const result = await apiService.createUser(newUser);
+      setImportStatus(result.message);
+      setNewUser({
+        username: '',
+        email: '',
+        password: '',
+        fullName: '',
+        role: 'USER'
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to create user');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
@@ -750,6 +786,105 @@ const Admin: React.FC = () => {
                 <p className="mt-1 text-sm text-gray-600">
                   Import head-to-head statistics from the configured CSV file
                 </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* User Management Section */}
+        <div className="bg-white shadow rounded-lg mb-6">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              User Management
+            </h3>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="username" className="block text-sm font-medium text-gray-700">
+                    Username *
+                  </label>
+                  <input
+                    type="text"
+                    id="username"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Enter username"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    value={newUser.email}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Enter email address"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password *
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Enter password"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    id="fullName"
+                    value={newUser.fullName}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, fullName: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Enter full name"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                    Role
+                  </label>
+                  <select
+                    id="role"
+                    value={newUser.role}
+                    onChange={(e) => setNewUser(prev => ({ ...prev, role: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    disabled={loading}
+                  >
+                    <option value="USER">USER</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handleCreateUser}
+                  disabled={loading || !newUser.username || !newUser.email || !newUser.password}
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {loading ? 'Creating...' : 'Create User'}
+                </button>
               </div>
             </div>
           </div>

@@ -2,8 +2,11 @@ package com.ipl.controller;
 
 import com.ipl.dto.UserDTO;
 import com.ipl.model.User;
+import com.ipl.model.mongo.UserMongo;
 import com.ipl.service.UserService;
 import com.ipl.service.UserPointsService;
+import com.ipl.repository.mongo.UserMongoRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,18 +16,19 @@ import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/users")
-@RequiredArgsConstructor
 public class UserController {
     
     private final UserService userService;
     private final UserPointsService userPointsService;
-    
-    @GetMapping
-    public ResponseEntity<List<UserDTO>> getAllUsers() {
-        List<UserDTO> users = userService.getAllUsers().stream()
-                .map(this::convertToDTO)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(users);
+    private final UserMongoRepository userMongoRepository;
+    private final PasswordEncoder passwordEncoder;
+
+    public UserController(UserService userService, UserPointsService userPointsService, 
+                          UserMongoRepository userMongoRepository, PasswordEncoder passwordEncoder) {
+        this.userService = userService;
+        this.userPointsService = userPointsService;
+        this.userMongoRepository = userMongoRepository;
+        this.passwordEncoder = passwordEncoder;
     }
     
     @GetMapping("/{id}")
@@ -57,6 +61,40 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
         return ResponseEntity.ok().build();
+    }
+    
+    @PostMapping("/mongo")
+    public ResponseEntity<?> createMongoUser(@RequestBody UserMongo userMongo) {
+        try {
+            if (userMongoRepository.existsByUsername(userMongo.getUsername())) {
+                return ResponseEntity.badRequest().body("Username already exists in MongoDB");
+            }
+            if (userMongoRepository.existsByEmail(userMongo.getEmail())) {
+                return ResponseEntity.badRequest().body("Email already exists in MongoDB");
+            }
+            
+            userMongo.setId(System.currentTimeMillis());
+            userMongo.setUniqueUserId(userMongo.getUsername() + "-" + System.currentTimeMillis());
+            userMongo.setPassword(passwordEncoder.encode(userMongo.getPassword()));
+            userMongo.setIsActive(true);
+            userMongo.setEmailVerified(true);
+            userMongo.setCreatedAt(System.currentTimeMillis());
+            userMongo.setUpdatedAt(System.currentTimeMillis());
+            if (userMongo.getRole() == null) {
+                userMongo.setRole("USER");
+            }
+            if (userMongo.getPoints() == null) {
+                userMongo.setPoints(0);
+            }
+            if (userMongo.getRank() == null) {
+                userMongo.setRank(0);
+            }
+            
+            UserMongo saved = userMongoRepository.save(userMongo);
+            return ResponseEntity.ok(saved);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Failed to create user: " + e.getMessage());
+        }
     }
     
     @PutMapping("/{id}/password")
