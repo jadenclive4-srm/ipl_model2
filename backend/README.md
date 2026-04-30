@@ -1,85 +1,102 @@
-# IPL Predictor - Backend
+# IPL AI Chat (Groq + SearXNG)
 
-A Spring Boot REST API application for the IPL Predictor frontend.
+🧠 Overview
 
-## 🏏 Features
+This project is an IPL AI chatbot that:
 
-- RESTful API endpoints for match data, predictions, and user management
-- User authentication with JWT
-- Match prediction logic
-- Leaderboard calculations
-- MySQL database integration
+- Uses Groq for generating answers (llama-3.3-70b-versatile)
+- Uses SearXNG for web search (no API key required)
+- Supports match, player, and general queries
 
-## 🚀 Tech Stack
+⚙️ Requirements
 
 - Java 17+
-- Spring Boot 3.x
-- Spring Security
-- MySQL
-- Maven
+- Spring Boot project
+- Groq API Key
+- SearXNG instance (local or public)
 
-## 📦 Prerequisites
+🔑 Environment Variables
 
-- Java Development Kit (JDK) 17 or higher
-- Maven 3.6+
-- MySQL 8.0+
-
-## 🛠️ Installation
-
-1. Navigate to the backend directory:
-```bash
-cd backend
-```
-
-2. Update database configuration in `src/main/resources/application.properties`:
+The application uses `application.properties` for configuration:
 
 ```properties
-spring.datasource.url=jdbc:mysql://localhost:3306/ipl_predictor
-spring.datasource.username=root
-spring.datasource.password=your_password
+groq.api.key=your_groq_api_key
+groq.model=llama-3.3-70b-versatile
 ```
 
-3. Build the project:
+For SearXNG, set the environment variable or update application.properties:
+```properties
+# SEARXNG_URL is optional - defaults to http://localhost:8080
+SEARXNG_URL=http://localhost:8080
+```
+
+Additional configs in application.properties:
+
+```properties
+# Groq API Configuration
+# Get a free API key from https://console.groq.com/
+# Set GROQ_API_KEY environment variable or replace below
+groq.api.key=YOUR_GROQ_API_KEY_HERE
+groq.model=llama-3.3-70b-versatile
+
+# Brave Search API Configuration (alternative)
+brave.search.api.key=${BRAVE_SEARCH_API_KEY:}
+brave.search.api.url=https://api.search.brave.com/res/v1/web/search
+```
+
+🌐 SearXNG Setup
+
+Option A: Use Public Instance (Quick Start)
+
+Use any public instance:
+- https://searx.be
+- https://search.sapti.me
+
+Set in environment:
 ```bash
-mvn clean install
+SEARXNG_URL=https://searx.be
 ```
 
-## ▶️ Running the Application
-
-### Option 1: Using Maven
+Option B: Run Locally (Docker)
 ```bash
-mvn spring-boot:run
+docker run -d -p 8080:8080 searxng/searxng
 ```
-The server will start at [http://localhost:8080](http://localhost:8080)
 
-### Option 2: Using JAR
+Then set:
 ```bash
-java -jar target/ipl-predictor-1.0.0.jar
+SEARXNG_URL=http://localhost:8080
 ```
 
-## 📁 Project Structure
+🧠 Groq Setup
 
-```
-backend/
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   └── com/ipl/
-│   │   │       ├── config/       # Configuration classes
-│   │   │       ├── controller/  # REST controllers
-│   │   │       ├── dto/          # Data Transfer Objects
-│   │   │       ├── model/        # Entity classes
-│   │   │       ├── repository/  # Data repositories
-│   │   │       ├── service/      # Business logic
-│   │   │       └── util/         # Utility classes
-│   │   └── resources/
-│   │       └── application.properties
-│   └── test/
-├── pom.xml
-└── README.md
+Use model: `llama-3.3-70b-versatile`
+
+Get your API key from: https://console.groq.com/
+
+🔍 API Endpoints
+
+### AI Chat
+
+**POST** `/api/ai/ask` - Ask AI a question
+
+Request:
+```json
+{
+  "query": "RCB injury update today"
+}
 ```
 
-## 🔗 API Endpoints
+Response:
+```json
+{
+  "response": "Final AI answer here",
+  "rawData": {...}  // included for MATCH queries
+}
+```
+
+**GET** `/api/ai/ask?query=...` - Same as POST (GET version)
+
+**POST** `/api/ai/query` - Legacy match prediction endpoint
 
 ### Matches
 - `GET /api/matches` - Get all matches
@@ -97,6 +114,29 @@ backend/
 ### Users
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
+
+🧪 Test Queries
+
+Try these queries:
+- `Who will win MI vs CSK?`
+- `RCB injury update today`
+- `Top IPL batsman`
+- `Who is better Kohli or Rohit`
+
+⚙️ Expected Behavior
+
+| Query Type | Intent | Behavior |
+|-----------|--------|----------|
+| Match (e.g., "MI vs CSK") | MATCH | Uses match service + Groq |
+| Player (e.g., "Kohli stats") | PLAYER | Groq only |
+| Latest/Trending (e.g., "injury update today") | LATEST | SearXNG + Groq |
+| General (e.g., "Who is better Kohli or Rohit") | GENERAL | Groq only |
+
+Intent Detection:
+- **MATCH**: Contains vs, win, beat, defeat, winner, prediction, predict
+- **PLAYER**: Contains score, runs, century, batsman, bowler, wicket, and player names
+- **LATEST**: Contains latest, today, news, update, recent, injury
+- **GENERAL**: All other queries
 
 ## 🎨 UI Theme
 

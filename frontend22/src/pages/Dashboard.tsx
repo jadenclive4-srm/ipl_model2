@@ -9,6 +9,7 @@ import MatchCard from '../components/MatchCard';
 import Leaderboard from '../components/Leaderboard';
 import AIQuery from '../components/AIQuery';
 import Predictions from './Predictions';
+import PatternBackground from '../components/PatternBackground';
 
 type TabType = 'matches' | 'predictions' | 'leaderboard' | 'ai';
 
@@ -24,33 +25,28 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-   const loadMatchesData = useCallback(async () => {
-     try {
-       setLoading(true);
-       const [todaysData, upcomingData, allMatchesData, predictionsData, pointsData] = await Promise.all([
-         apiService.getTodaysMatches().catch(() => []),
-         apiService.getUpcomingMatches().catch(() => []),
-         apiService.getAllMatches(),
-         user ? apiService.getUserPredictions(user.id) : Promise.resolve([]),
-         user ? apiService.getUserPoints(user.id).catch(() => 0) : Promise.resolve(0),
-       ]);
-       
-       console.log('DEBUG - Todays matches:', todaysData);
-       console.log('DEBUG - Today length:', todaysData.length);
-       console.log('DEBUG - Upcoming:', upcomingData.length);
-       console.log('DEBUG - All matches:', allMatchesData.length);
-       
-       setTodayMatches(todaysData);
-       setUpcomingMatches(upcomingData.filter(m => !todaysData.some(tm => tm.id === m.id)));
-       setAllMatches(allMatchesData);
-       setPredictions(predictionsData);
-       setUserPoints(pointsData);
-     } catch (error) {
-       setError(error instanceof Error ? error.message : 'Failed to load data');
-     } finally {
-       setLoading(false);
-     }
-   }, [user]);
+  const loadMatchesData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [todaysData, upcomingData, allMatchesData, predictionsData, pointsData] = await Promise.all([
+        apiService.getTodaysMatches().catch(() => []),
+        apiService.getUpcomingMatches().catch(() => []),
+        apiService.getAllMatches(),
+        user ? apiService.getUserPredictions(user.id) : Promise.resolve([]),
+        user ? apiService.getUserPoints(user.id).catch(() => 0) : Promise.resolve(0),
+      ]);
+      
+      setTodayMatches(todaysData);
+      setUpcomingMatches(upcomingData.filter(m => !todaysData.some(tm => tm.id === m.id)));
+      setAllMatches(allMatchesData);
+      setPredictions(predictionsData);
+      setUserPoints(pointsData);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to load data');
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -76,17 +72,19 @@ const Dashboard: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-spotify-dark">
-      <header className="bg-spotify-surface border-b border-spotify-surfaceLight">
+    <div className="min-h-screen bg-spotify-dark bg-opacity-85 relative">
+      <PatternBackground imagePath="/backgrounds/bg.jfif" opacity={0.85} blendMode="multiply" />
+      
+      <header className="bg-spotify-surface border-b border-spotify-surfaceLight relative z-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-           {/* Mobile Layout - Title with buttons on sides */}
-           <div className="flex sm:hidden items-center justify-between py-4">
-             <button
-               onClick={() => user?.role === 'ADMIN' && navigate('/admin')}
-               className={`bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-3 py-1 rounded-full text-xs font-medium ${user?.role !== 'ADMIN' ? 'opacity-0 pointer-events-none' : ''}`}
-             >
-               Admin
-             </button>
+          {/* Mobile Layout */}
+          <div className="flex sm:hidden items-center justify-between py-4">
+            <button
+              onClick={() => user?.role === 'ADMIN' && navigate('/admin')}
+              className={`bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-3 py-1 rounded-full text-xs font-medium ${user?.role !== 'ADMIN' ? 'opacity-0 pointer-events-none' : ''}`}
+            >
+              Admin
+            </button>
             <div className="flex-1 text-center">
                 <h1 className="text-xl font-bold text-spotify-green">IPL Predictor</h1>
                 <div className="flex items-center justify-center space-x-2 mt-1">
@@ -96,48 +94,48 @@ const Dashboard: React.FC = () => {
                     </span>
                 </div>
             </div>
-             <button
-               onClick={logout}
-               className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 py-1 rounded-full text-xs font-medium"
-             >
-               Logout
-             </button>
-           </div>
+            <button
+              onClick={logout}
+              className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 py-1 rounded-full text-xs font-medium"
+            >
+              Logout
+            </button>
+          </div>
 
           {/* Desktop Layout */}
           <div className="hidden sm:flex sm:justify-between sm:items-center py-6">
             <div className="flex items-center">
                 <h1 className="text-xl md:text-2xl font-bold text-spotify-green">IPL Predictor</h1>
               </div>
-             <div className="flex items-center space-x-4">
-               <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
-               <div className="flex items-center space-x-2">
-                   <span className="text-spotify-green font-semibold">Points:</span>
-                   <span className="bg-spotify-green/20 text-spotify-green px-2 py-0.5 rounded-full text-sm font-medium">
-                       {userPoints}
-                   </span>
-               </div>
-               {user?.role === 'ADMIN' && (
-                 <button
-                   onClick={() => navigate('/admin')}
-                   className="bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-4 py-2 rounded-full text-sm font-medium"
-                 >
-                   Admin
-                 </button>
-               )}
-               <button
-                 onClick={logout}
-                 className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-4 py-2 rounded-full text-sm font-medium"
-               >
-                 Logout
-               </button>
-             </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
+              <div className="flex items-center space-x-2">
+                <span className="text-spotify-green font-semibold">Points:</span>
+                <span className="bg-spotify-green/20 text-spotify-green px-2 py-0.5 rounded-full text-sm font-medium">
+                  {userPoints}
+                </span>
+              </div>
+              {user?.role === 'ADMIN' && (
+                <button
+                  onClick={() => navigate('/admin')}
+                  className="bg-spotify-green hover:bg-spotify-greenHover text-spotify-black px-4 py-2 rounded-full text-sm font-medium"
+                >
+                  Admin
+                </button>
+              )}
+              <button
+                onClick={logout}
+                className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-4 py-2 rounded-full text-sm font-medium"
+              >
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pb-16 md:pb-6">
-        {/* Desktop Navigation - Hidden on mobile, visible on md+ screens */}
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pb-16 md:pb-6 relative z-10">
+        {/* Desktop Navigation */}
         <div className="hidden md:block bg-spotify-surface border border-spotify-surfaceLight rounded-t-lg mb-6">
           <nav className="flex space-x-8 -mb-px px-4" aria-label="Tabs">
             {tabs.map((tab) => (
@@ -171,39 +169,39 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : (
                 <>
-                    {todayMatches.length > 0 && (
-                      <div className="mb-8">
-                        <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Today's Matches</h2>
-                        <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-2 justify-items-center max-w-4xl mx-auto">
-                          {todayMatches.map((match) => (
-                            <div key={match.id} className="w-full max-w-md">
-                              <MatchCard
-                                match={match}
-                                userPrediction={getUserPredictionForMatch(match.id)}
-                                onPredictClick={() => navigate(`/predict/${match.id}`)}
-                                isLarge={true}
-                              />
-                            </div>
-                          ))}
-                        </div>
+                  {todayMatches.length > 0 && (
+                    <div className="mb-8">
+                      <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Today's Matches</h2>
+                      <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-2 justify-items-center max-w-4xl mx-auto">
+                        {todayMatches.map((match) => (
+                          <div key={match.id} className="w-full max-w-md">
+                            <MatchCard
+                              match={match}
+                              userPrediction={getUserPredictionForMatch(match.id)}
+                              onPredictClick={() => navigate(`/predict/${match.id}`)}
+                              isLarge={true}
+                            />
+                          </div>
+                        ))}
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                   {upcomingMatches.length > 0 && (
-                     <div className="mb-8">
-                       <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Upcoming Matches</h2>
-                       <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                          {upcomingMatches.filter(m => !todayMatches.some(tm => tm.id === m.id)).slice(0, 3).map((match) => (
-                           <MatchCard
-                             key={match.id}
-                             match={match}
-                             userPrediction={getUserPredictionForMatch(match.id)}
-                             onPredictClick={() => navigate(`/predict/${match.id}`)}
-                           />
-                         ))}
-                       </div>
-                     </div>
-                   )}
+                  {upcomingMatches.length > 0 && (
+                    <div className="mb-8">
+                      <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Upcoming Matches</h2>
+                      <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {upcomingMatches.filter(m => !todayMatches.some(tm => tm.id === m.id)).slice(0, 3).map((match) => (
+                          <MatchCard
+                            key={match.id}
+                            match={match}
+                            userPrediction={getUserPredictionForMatch(match.id)}
+                            onPredictClick={() => navigate(`/predict/${match.id}`)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </>
@@ -217,8 +215,8 @@ const Dashboard: React.FC = () => {
         </div>
       </main>
 
-      {/* Bottom Navigation - Visible on mobile/tablet, hidden on desktop */}
-      <nav className="block md:hidden fixed bottom-0 left-0 right-0 bg-spotify-surface border-t border-spotify-surfaceLight z-50">
+      {/* Bottom Navigation */}
+      <nav className="block md:hidden fixed bottom-0 left-0 right-0 bg-spotify-surface border-t border-spotify-surfaceLight z-20">
         <div className="flex">
           {tabs.map((tab) => (
             <button

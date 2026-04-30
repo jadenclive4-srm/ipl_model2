@@ -40,12 +40,11 @@ public class AIQueryController {
             String llmResponse;
 
             if (intent.equals("MATCH")) {
-                // Handle match prediction questions
                 Map<String, String> teams = llmService.extractTeamsFromQuery(query.toLowerCase());
-                String team1 = null;
-                String team2 = null;
+                String team1;
+                String team2;
 
-                // If no teams found in query, try to get today's match
+                // If teams not found → fallback to today's match
                 if (teams.isEmpty() || teams.get("team1") == null || teams.get("team2") == null) {
                     Optional<Match> todayMatch = matchService.getTodayMatch();
                     if (todayMatch.isPresent()) {
@@ -53,8 +52,7 @@ public class AIQueryController {
                         team1 = match.getHomeTeam().getTeamName();
                         team2 = match.getAwayTeam().getTeamName();
                     } else {
-                        response.put("error", "Please provide valid IPL teams or ensure there's a match scheduled for today.");
-                        response.put("teams", teams);
+                        response.put("error", "Please provide valid IPL teams or ensure a match is scheduled.");
                         return ResponseEntity.ok(response);
                     }
                 } else {
@@ -65,11 +63,15 @@ public class AIQueryController {
                 Map<String, Object> prediction = matchService.predictMatch(team1, team2);
                 llmResponse = llmService.generateResponse(query, prediction);
                 response.put("rawData", prediction);
+
+            } else if (intent.equals("LATEST")) {
+                // 🔥 Uses SearXNG + Groq
+                llmResponse = llmService.searchAndAnswer(query);
+
             } else if (intent.equals("PLAYER")) {
-                // Handle player-related questions
                 llmResponse = handlePlayerQuery(query);
+
             } else {
-                // Handle general questions
                 llmResponse = handleGeneralQuery(query);
             }
 
@@ -87,56 +89,66 @@ public class AIQueryController {
         return askQuestion(new AskRequest(query));
     }
     
+    // ---------------- INTENT DETECTION ----------------
     private String detectIntent(String query) {
         if (query == null) return "GENERAL";
         query = query.toLowerCase();
 
+        // 🔥 MATCH (highest priority)
         if (query.contains("vs") || query.contains("versus") || query.contains("match") ||
-            query.contains("win") || query.contains("beat") || query.contains("defeat") ||
-            query.contains("winner") || query.contains("prediction") || query.contains("predict")) {
+            query.contains("who will win") || query.contains("prediction") || query.contains("predict")) {
             return "MATCH";
         }
 
-        if (query.contains("score") || query.contains("runs") || query.contains("50") ||
-            query.contains("100") || query.contains("century") || query.contains("half-century") ||
-            query.contains("kohli") || query.contains("rohit") || query.contains("dhoni") ||
-            query.contains("captain") || query.contains("batsman") || query.contains("bowler") ||
-            query.contains("wicket") || query.contains("player") || query.contains("batting") ||
-            query.contains("bowling")) {
+        // 🔥 LATEST (real-time only)
+        if (query.contains("latest") || query.contains("news") ||
+            query.contains("update") || query.contains("recent") ||
+            query.contains("injury") || query.contains("transfer") ||
+            query.contains("announcement")) {
+            return "LATEST";
+        }
+
+        // 🔥 PLAYER
+        if (query.contains("score") || query.contains("runs") ||
+            query.contains("kohli") || query.contains("rohit") ||
+            query.contains("dhoni") || query.contains("captain") ||
+            query.contains("player") || query.contains("batting") ||
+            query.contains("bowling") || query.contains("wicket")) {
             return "PLAYER";
         }
 
         return "GENERAL";
     }
 
+    // ---------------- PLAYER ----------------
     private String handlePlayerQuery(String query) {
         String prompt = """
-        You are an IPL cricket assistant.
+You are an IPL cricket assistant.
 
-        Answer briefly in 1-2 sentences based on general IPL knowledge.
+Answer briefly in 1-2 sentences based on cricket knowledge.
+Do NOT mention knowledge cutoff.
 
-        Question: %s
+Question:
+""" + query;
 
-        If exact stats are not available, give a reasonable cricket-based answer.
-        """.formatted(query);
-
-        return llmService.callGeminiAPI(prompt);
+        return llmService.callGroqAPI(prompt);
     }
 
+    // ---------------- GENERAL ----------------
     private String handleGeneralQuery(String query) {
         String prompt = """
-        You are an IPL cricket assistant.
+You are an IPL cricket assistant.
 
-        Answer briefly in 1-2 sentences based on general IPL knowledge.
+Answer briefly in 1-2 sentences.
+Do NOT mention knowledge cutoff.
 
-        Question: %s
+Question:
+""" + query;
 
-        Keep answers informative but concise.
-        """.formatted(query);
-
-        return llmService.callGeminiAPI(prompt);
+        return llmService.callGroqAPI(prompt);
     }
 
+    // ---------------- REQUEST DTO ----------------
     public static class AskRequest {
         private String query;
 

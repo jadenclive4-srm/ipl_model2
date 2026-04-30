@@ -575,7 +575,7 @@ const MatchPrediction: React.FC = () => {
               <div className="text-center py-4">
                 <p className="text-spotify-textMuted mb-4">Answer the quiz in the section below to earn bonus points!</p>
                 <div className="bg-spotify-dark p-4 rounded-lg">
-                  <p className="text-spotify-text font-medium">5 Questions - 50 Bonus Points</p>
+                  <p className="text-spotify-text font-medium">5 Questions - 5 Bonus Points</p>
                 </div>
               </div>
             )}

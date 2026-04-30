@@ -231,7 +231,7 @@ class ApiService {
   }
 
   // Leaderboard endpoints
-async getLeaderboard(): Promise<User[]> {
+  async getLeaderboard(): Promise<User[]> {
     return this.request<User[]>('/api/leaderboard');
   }
 
@@ -246,6 +246,36 @@ async getLeaderboard(): Promise<User[]> {
   async getTopUsers(count: number): Promise<User[]> {
     return this.request<User[]>(`/api/leaderboard/top/${count}`);
   }
+
+  async sendTopToTeams(gc: string = 'default', mode: string = 'webhook'): Promise<{ success: boolean; message: string; topUsers?: User[]; target?: string }> {
+    return this.request<{ success: boolean; message: string; topUsers?: User[]; target?: string }>(
+      `/api/leaderboard/send-to-teams?gc=${encodeURIComponent(gc)}&mode=${encodeURIComponent(mode)}`,
+      { method: 'POST' }
+    );
+  }
+
+  async sendTopToGroupChat(chatId: string = 'default', mode: string = 'groupchat'): Promise<{ success: boolean; message: string }> {
+    return this.sendTopToTeams(chatId, mode);
+  }
+
+  async sendViaPowerAutomate(): Promise<{ success: boolean; message: string }> {
+    return this.sendTopToTeams('default', 'powerautomate');
+  }
+
+  async getAvailableTeamsChannels(): Promise<{ channels: string[]; count: number; type?: string }> {
+    return this.request<{ channels: string[]; count: number; type?: string }>('/api/leaderboard/teams-channels');
+  }
+
+   async getAvailableGroupChats(): Promise<{ groupChats: string[]; count: number; type?: string }> {
+     return this.request<{ groupChats: string[]; count: number; type?: string }>('/api/leaderboard/teams-groupchats');
+   }
+
+   async getTeamsDeepLink(users?: string): Promise<{ success: boolean; message: string; deepLink?: string; users?: any[] }> {
+     const params = users ? `?users=${encodeURIComponent(users)}` : '';
+     return this.request<{ success: boolean; message: string; deepLink?: string; users?: any[] }>(
+       `/api/leaderboard/teams-deeplink${params}`
+     );
+   }
 
   // Question endpoints
   async getQuestionsByMatch(matchId: number, userId: number): Promise<Question[]> {
@@ -314,6 +344,27 @@ async getLeaderboard(): Promise<User[]> {
     return this.request<{ message: string }>('/api/matches/import/venue', {
       method: 'POST',
     });
+  }
+
+  // Scraper endpoints
+  async scrapeLastMatch(): Promise<any> {
+    return this.request<any>('/api/scraper/last-match', { method: 'POST' });
+  }
+
+  async scrapePointsTable(): Promise<any> {
+    return this.request<any>('/api/scraper/points-table', { method: 'POST' });
+  }
+
+  async scrapePlayerStats(teamOrPlayer: string): Promise<any> {
+    return this.request<any>(`/api/scraper/player-stats/${encodeURIComponent(teamOrPlayer)}`, { method: 'POST' });
+  }
+
+  async scrapeUpcomingMatches(): Promise<any> {
+    return this.request<any>('/api/scraper/upcoming-matches', { method: 'POST' });
+  }
+
+  async scrapeTeamStats(): Promise<any> {
+    return this.request<any>('/api/scraper/team-stats', { method: 'POST' });
   }
 
   async getVenueStats(stadium: string): Promise<VenueStats> {
