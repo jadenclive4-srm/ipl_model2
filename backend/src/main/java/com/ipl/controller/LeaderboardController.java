@@ -6,6 +6,7 @@ import com.ipl.model.mongo.UserPoints;
 import com.ipl.service.UserPointsService;
 import com.ipl.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
@@ -62,31 +63,56 @@ public class LeaderboardController {
          return ResponseEntity.ok(users);
      }
     
-     @GetMapping("/user/{userId}/rank")
-     public ResponseEntity<UserDTO> getUserRank(@PathVariable Long userId) {
-         Long points = userPointsService.getUserPoints(userId);
-         int rank = userPointsService.getUserRank(userId);
-         return userService.findById(userId)
-                 .map(user -> {
-                     UserDTO dto = new UserDTO();
-                     dto.setId(user.getId());
-                     dto.setUsername(user.getUsername());
-                     dto.setEmail(user.getEmail());
-                     dto.setFullName(user.getFullName());
-                     dto.setPoints(points);
-                     dto.setRank(rank);
-                     dto.setRole(user.getRole());
-                     dto.setCreatedAt(user.getCreatedAt());
-                     return ResponseEntity.ok(dto);
-                 })
-                 .orElse(ResponseEntity.notFound().build());
-     }
+      @GetMapping("/user/{userId}/rank")
+      public ResponseEntity<UserDTO> getUserRank(@PathVariable Long userId) {
+          Long points = userPointsService.getUserPoints(userId);
+          int rank = userPointsService.getUserRank(userId);
+          return userService.findById(userId)
+                  .map(user -> {
+                      UserDTO dto = new UserDTO();
+                      dto.setId(user.getId());
+                      dto.setUsername(user.getUsername());
+                      dto.setEmail(user.getEmail());
+                      dto.setFullName(user.getFullName());
+                      dto.setPoints(points);
+                      dto.setRank(rank);
+                      dto.setRole(user.getRole());
+                      dto.setCreatedAt(user.getCreatedAt());
+                      return ResponseEntity.ok(dto);
+                  })
+                  .orElse(ResponseEntity.notFound().build());
+      }
+
+      @GetMapping("/my-rank")
+      public ResponseEntity<UserDTO> getMyRank() {
+          User authenticatedUser = userService.getCurrentAuthenticatedUser();
+          Long points = userPointsService.getUserPoints(authenticatedUser.getId());
+          int rank = userPointsService.getUserRank(authenticatedUser.getId());
+
+          UserDTO dto = new UserDTO();
+          dto.setId(authenticatedUser.getId());
+          dto.setUsername(authenticatedUser.getUsername());
+          dto.setEmail(authenticatedUser.getEmail());
+          dto.setFullName(authenticatedUser.getFullName());
+          dto.setPoints(points);
+          dto.setRank(rank);
+          dto.setRole(authenticatedUser.getRole());
+          dto.setCreatedAt(authenticatedUser.getCreatedAt());
+          return ResponseEntity.ok(dto);
+      }
     
-    @GetMapping("/user/{userId}/points")
-    public ResponseEntity<Long> getUserPoints(@PathVariable Long userId) {
-        Long points = userPointsService.getUserPoints(userId);
-        return ResponseEntity.ok(points);
-    }
+     @GetMapping("/user/{userId}/points")
+     public ResponseEntity<Long> getUserPoints(@PathVariable Long userId) {
+         Long points = userPointsService.getUserPoints(userId);
+         return ResponseEntity.ok(points);
+     }
+
+     @GetMapping("/my-points")
+     public ResponseEntity<Long> getMyPoints() {
+         User authenticatedUser = userService.getCurrentAuthenticatedUser();
+         Long points = userPointsService.getUserPoints(authenticatedUser.getId());
+         return ResponseEntity.ok(points);
+     }
     
     @PostMapping("/sync")
     public ResponseEntity<String> syncUserPoints() {

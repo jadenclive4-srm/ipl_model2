@@ -10,6 +10,7 @@ import com.ipl.service.UserPointsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -106,23 +107,23 @@ public class UserService implements UserDetailsService {
         // Delete existing admin from both stores
         userRepository.findByUsername("admin").ifPresent(user -> {
             userRepository.delete(user);
-            System.out.println("Deleted existing admin from H2");
+            log.info("Deleted existing admin from H2");
         });
         try {
             userMongoRepository.findByUsername("admin").ifPresent(userMongo -> {
                 userMongoRepository.delete(userMongo);
-                System.out.println("Deleted existing admin from MongoDB");
+                log.info("Deleted existing admin from MongoDB");
             });
         } catch (Exception e) {
-            System.err.println("Warning: Could not delete admin from MongoDB: " + e.getMessage());
+            log.warn("Warning: Could not delete admin from MongoDB: {}", e.getMessage());
         }
 
         // Create fresh admin without OTP
         try {
             createUserWithoutOtp("admin", null, "admin@ipl.com", "admin123", "Admin User", "ADMIN");
-            System.out.println("Admin user (re)created: admin / admin123");
+            log.info("Admin user (re)created: admin / admin123");
         } catch (Exception e) {
-            System.err.println("Failed to create admin user: " + e.getMessage());
+            log.error("Failed to create admin user: {}", e.getMessage());
             e.printStackTrace();
         }
     }
@@ -281,9 +282,9 @@ public class UserService implements UserDetailsService {
                  user.setUpdatedAt(um.getUpdatedAt());
                  return Optional.of(user);
              }
-         } catch (Exception e) {
-             System.err.println("Error checking MongoDB for user: " + e.getMessage());
-         }
+          } catch (Exception e) {
+              log.error("Error checking MongoDB for user: {}", e.getMessage());
+          }
         
         return Optional.empty();
     }
@@ -317,30 +318,30 @@ public class UserService implements UserDetailsService {
                  User savedUser = userRepository.save(user);
                  return Optional.of(savedUser);
              }
-         } catch (Exception e) {
-             System.err.println("Error checking MongoDB for user id: " + e.getMessage());
-         }
+          } catch (Exception e) {
+              log.error("Error checking MongoDB for user id: {}", e.getMessage());
+          }
         
         return Optional.empty();
     }
      
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        System.out.println("loadUserByUsername called for: " + username);
-        
+        log.debug("loadUserByUsername called for: {}", username);
+
         // Try MongoDB first
         Optional<UserMongo> mongoOpt;
         try {
             mongoOpt = userMongoRepository.findByUsername(username);
-            System.out.println("MongoDB lookup result for " + username + ": " + (mongoOpt.isPresent() ? "found" : "not found"));
+            log.debug("MongoDB lookup result for {}: {}", username, (mongoOpt.isPresent() ? "found" : "not found"));
         } catch (Exception e) {
-            System.err.println("MongoDB lookup failed for " + username + ": " + e.getMessage());
+            log.error("MongoDB lookup failed for {}: {}", username, e.getMessage());
             mongoOpt = Optional.empty();
         }
-        
+
         if (mongoOpt.isPresent()) {
             UserMongo mongoUser = mongoOpt.get();
-            System.out.println("Loading user from MongoDB: " + username + ", isActive=" + mongoUser.getIsActive() + ", hasPassword=" + (mongoUser.getPassword() != null));
+            log.debug("Loading user from MongoDB: {}, isActive={}, hasPassword={}", username, mongoUser.getIsActive(), (mongoUser.getPassword() != null));
             return new org.springframework.security.core.userdetails.User(
                 mongoUser.getUsername(),
                 mongoUser.getPassword(),
@@ -351,18 +352,18 @@ public class UserService implements UserDetailsService {
                 List.of(new SimpleGrantedAuthority("ROLE_" + mongoUser.getRole()))
             );
         }
-        
+
         // Fallback to H2 (for backward compatibility or migration)
         Optional<User> h2Opt = userRepository.findByUsername(username);
-        System.out.println("H2 lookup result for " + username + ": " + (h2Opt.isPresent() ? "found" : "not found"));
-        
+        log.debug("H2 lookup result for {}: {}", username, (h2Opt.isPresent() ? "found" : "not found"));
+
         if (h2Opt.isEmpty()) {
             throw new UsernameNotFoundException("User not found: " + username);
         }
         User h2User = h2Opt.get();
-        
-        System.out.println("Loading user from H2: " + username + ", isActive=" + h2User.getIsActive() + ", hasPassword=" + (h2User.getPassword() != null));
-        
+
+        log.debug("Loading user from H2: {}, isActive={}, hasPassword={}", username, h2User.getIsActive(), (h2User.getPassword() != null));
+
          // Migrate to MongoDB
          UserMongo migrated = new UserMongo();
          migrated.setId(h2User.getId());
@@ -378,9 +379,9 @@ public class UserService implements UserDetailsService {
          migrated.setUpdatedAt(h2User.getUpdatedAt() != null ? h2User.getUpdatedAt() : System.currentTimeMillis());
         try {
             userMongoRepository.save(migrated);
-            System.out.println("User migrated to MongoDB: " + username);
+            log.debug("User migrated to MongoDB: {}", username);
         } catch (Exception e) {
-            System.err.println("Migration to MongoDB failed: " + e.getMessage());
+            log.error("Migration to MongoDB failed: {}", e.getMessage());
         }
         
         return new org.springframework.security.core.userdetails.User(
@@ -627,5 +628,14 @@ public class UserService implements UserDetailsService {
     public void resendVerificationOtp(String email) {
         // Simply generate and send new OTP (old ones will be deleted)
         generateAndSendVerificationOtp(email);
+    }
+
+    /**
+     * Get the currently authenticated user from SecurityContext
+     */
+    public User getCurrentAuthenticatedUser() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        return findByUsername(username)
+                .orElseThrow(() -> new RuntimeException("Authenticated user not found: " + username));
     }
 }

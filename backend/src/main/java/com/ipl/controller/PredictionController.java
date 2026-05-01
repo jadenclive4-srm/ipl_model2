@@ -11,6 +11,7 @@ import com.ipl.repository.UserRepository;
 import com.ipl.repository.mongo.UserPredictionRepository;
 import com.ipl.repository.mongo.UserResponseRepository;
 import com.ipl.service.PredictionService;
+import com.ipl.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,33 +26,46 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/predictions")
 @RequiredArgsConstructor
 public class PredictionController {
-    
+
     private final PredictionService predictionService;
+    private final UserService userService;
     private final UserPredictionRepository userPredictionRepository;
     private final UserRepository userRepository;
     private final MatchRepository matchRepository;
     private final UserResponseRepository userResponseRepository;
     
     @PostMapping
-    public ResponseEntity<PredictionDTO> createPrediction(@RequestBody PredictionDTO predictionDTO) {
-        Prediction prediction = predictionService.createPrediction(
-                predictionDTO.getUserId(),
-                predictionDTO.getMatchId(),
-                predictionDTO.getPredictedWinnerId(),
-                predictionDTO.getHomeProbability(),
-                predictionDTO.getAwayProbability()
-        );
-        return ResponseEntity.ok(convertToDTO(prediction));
+    public ResponseEntity<?> createPrediction(@RequestBody PredictionDTO predictionDTO) {
+        try {
+            // Get the authenticated user instead of trusting userId from request
+            User authenticatedUser = userService.getCurrentAuthenticatedUser();
+
+            Prediction prediction = predictionService.createPrediction(
+                    authenticatedUser.getId(),
+                    predictionDTO.getMatchId(),
+                    predictionDTO.getPredictedWinnerId(),
+                    predictionDTO.getHomeProbability(),
+                    predictionDTO.getAwayProbability()
+            );
+            return ResponseEntity.ok(convertToDTO(prediction));
+        } catch (RuntimeException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
     }
     
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<PredictionDTO>> getUserPredictions(@PathVariable Long userId) {
-        List<PredictionDTO> predictions = predictionService.getUserPredictions(userId).stream()
+        // Get the authenticated user instead of trusting userId from path
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+
+        List<PredictionDTO> predictions = predictionService.getUserPredictions(authenticatedUser.getId()).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
         if (predictions.isEmpty()) {
             // Try MongoDB for admin-created users
-            List<UserPrediction> mongoPreds = userPredictionRepository.findByUserId(userId);
+            List<UserPrediction> mongoPreds = userPredictionRepository.findByUserId(authenticatedUser.getId());
             predictions = mongoPreds.stream()
                     .map(this::convertFromMongoToDTO)
                     .collect(Collectors.toList());
@@ -68,15 +82,16 @@ public class PredictionController {
     }
     
     @GetMapping("/user/{userId}/match/{matchId}")
-    public ResponseEntity<PredictionDTO> getUserMatchPrediction(
-            @PathVariable Long userId,
-            @PathVariable Long matchId) {
-        Optional<Prediction> pred = predictionService.getUserMatchPrediction(userId, matchId);
+    public ResponseEntity<PredictionDTO> getUserMatchPrediction(@PathVariable Long userId, @PathVariable Long matchId) {
+        // Get the authenticated user
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+
+        Optional<Prediction> pred = predictionService.getUserMatchPrediction(authenticatedUser.getId(), matchId);
         if (pred.isPresent()) {
             return ResponseEntity.ok(convertToDTO(pred.get()));
         } else {
             // Try MongoDB for admin-created users
-            Optional<UserPrediction> mongoPred = userPredictionRepository.findByUserIdAndMatchId(userId, matchId);
+            Optional<UserPrediction> mongoPred = userPredictionRepository.findByUserIdAndMatchId(authenticatedUser.getId(), matchId);
             if (mongoPred.isPresent()) {
                 return ResponseEntity.ok(convertFromMongoToDTO(mongoPred.get()));
             } else {
@@ -88,6 +103,20 @@ public class PredictionController {
     @PostMapping("/evaluate/{matchId}")
     public ResponseEntity<Map<String, String>> evaluatePredictions(@PathVariable Long matchId) {
         try {
+            // Validate match exists and has winner before starting transaction
+            Match match = matchRepository.findById(matchId).orElse(null);
+            if (match == null) {
+                Map<String, String> response = new HashMap<>();
+                response.put("error", "Match not found");
+                return ResponseEntity.badRequest().body(response);
+            }
+
+            if (match.getWinnerTeam() == null) {
+                Map<String, String> response = new HashMap<>();
+                response.put("error", "Match winner not determined");
+                return ResponseEntity.badRequest().body(response);
+            }
+
             predictionService.evaluatePredictions(matchId);
             Map<String, String> response = new HashMap<>();
             response.put("message", "Predictions evaluated successfully");
@@ -130,30 +159,33 @@ public class PredictionController {
     
     @PostMapping("/quiz")
     public ResponseEntity<Map<String, String>> submitQuizPrediction(@RequestBody com.ipl.dto.QuizPredictionDTO quizDTO) {
+        // Get the authenticated user instead of trusting userId from request
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+
         Match match = matchRepository.findById(quizDTO.getMatchId())
                 .orElseThrow(() -> new RuntimeException("Match not found"));
-        
+
         long matchDate = match.getMatchDate();
         java.time.ZoneId istZone = java.time.ZoneId.of("Asia/Kolkata");
         java.time.LocalDate matchDay = java.time.Instant.ofEpochMilli(matchDate).atZone(istZone).toLocalDate();
         java.time.LocalDate today = java.time.LocalDate.now(istZone);
-        
+
         if (!matchDay.equals(today)) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "Quiz is only available on the day of the match");
             return ResponseEntity.badRequest().body(error);
         }
-        
-        // Check MongoDB for existing answers
-        if (userResponseRepository.existsByUserIdAndMatchId(quizDTO.getUserId(), quizDTO.getMatchId())) {
+
+        // Check MongoDB for existing answers using authenticated user's ID
+        if (userResponseRepository.existsByUserIdAndMatchId(authenticatedUser.getId(), quizDTO.getMatchId())) {
             Map<String, String> error = new HashMap<>();
             error.put("error", "You have already submitted quiz answers for this match");
             return ResponseEntity.badRequest().body(error);
         }
-        
-        System.out.println("Quiz DTO received: userId=" + quizDTO.getUserId() + ", matchId=" + quizDTO.getMatchId() + ", answers=" + quizDTO.getAnswers());
+
+        System.out.println("Quiz DTO received: userId=" + authenticatedUser.getId() + ", matchId=" + quizDTO.getMatchId() + ", answers=" + quizDTO.getAnswers());
         predictionService.saveQuizPrediction(
-                quizDTO.getUserId(),
+                authenticatedUser.getId(),
                 quizDTO.getMatchId(),
                 quizDTO.getAnswers()
         );
@@ -163,10 +195,10 @@ public class PredictionController {
     }
     
     @GetMapping("/quiz/status")
-    public ResponseEntity<Map<String, Boolean>> getQuizStatus(
-            @RequestParam Long userId,
-            @RequestParam Long matchId) {
-        boolean exists = userResponseRepository.existsByUserIdAndMatchId(userId, matchId);
+    public ResponseEntity<Map<String, Boolean>> getQuizStatus(@RequestParam Long matchId) {
+        // Get the authenticated user
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+        boolean exists = userResponseRepository.existsByUserIdAndMatchId(authenticatedUser.getId(), matchId);
         Map<String, Boolean> result = new HashMap<>();
         result.put("submitted", exists);
         return ResponseEntity.ok(result);
@@ -208,9 +240,9 @@ public class PredictionController {
             java.time.LocalDate localDate = java.time.LocalDate.parse(date);
             long startOfDay = localDate.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
             long endOfDay = localDate.atTime(java.time.LocalTime.MAX).atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli();
-            
+
             List<UserPrediction> mongoPredictions = userPredictionRepository.findByCreatedAtBetween(startOfDay, endOfDay);
-            
+
             List<UserPredictionDTO> result = mongoPredictions.stream()
                 .map(mongoPred -> {
                     User user = userRepository.findById(mongoPred.getUserId()).orElse(null);
@@ -223,11 +255,33 @@ public class PredictionController {
                     );
                 })
                 .collect(Collectors.toList());
-            
+
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    @GetMapping("/invalid")
+    public ResponseEntity<List<UserPredictionDTO>> getInvalidPredictions() {
+        List<UserPrediction> invalidPredictions = predictionService.findInvalidPredictions();
+        List<UserPredictionDTO> result = invalidPredictions.stream()
+            .map(mongoPred -> new UserPredictionDTO(
+                mongoPred.getUserId(),
+                mongoPred.getUsername(),
+                mongoPred.getPredictedWinnerName(),
+                mongoPred.getMatchId()
+            ))
+            .collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/invalid")
+    public ResponseEntity<Map<String, Integer>> removeInvalidPredictions() {
+        int removedCount = predictionService.removeInvalidPredictions();
+        Map<String, Integer> response = new HashMap<>();
+        response.put("removed", removedCount);
+        return ResponseEntity.ok(response);
     }
     
     private PredictionDTO convertToDTO(Prediction prediction) {
@@ -265,5 +319,29 @@ public class PredictionController {
         dto.setHomeProbability(mongoPred.getHomeProbability());
         dto.setAwayProbability(mongoPred.getAwayProbability());
         return dto;
+    }
+
+    @GetMapping("/invalid")
+    public ResponseEntity<List<UserPredictionDTO>> getInvalidPredictions() {
+        List<UserPrediction> invalidPreds = predictionService.findInvalidPredictions();
+
+        List<UserPredictionDTO> result = invalidPreds.stream()
+            .map(pred -> new UserPredictionDTO(
+                pred.getUserId(),
+                pred.getUsername(),
+                pred.getPredictedWinnerName(),
+                pred.getMatchId()
+            ))
+            .collect(Collectors.toList());
+
+        return ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/invalid")
+    public ResponseEntity<Map<String, String>> removeInvalidPredictions() {
+        predictionService.removeInvalidPredictions();
+        Map<String, String> response = new HashMap<>();
+        response.put("message", "Invalid predictions removed successfully");
+        return ResponseEntity.ok(response);
     }
 }

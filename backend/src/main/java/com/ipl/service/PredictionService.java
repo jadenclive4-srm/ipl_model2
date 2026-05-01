@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -104,11 +105,12 @@ public class PredictionService {
     
     @Transactional
     public void evaluatePredictions(Long matchId) {
-        Match match = matchRepository.findById(matchId)
-                .orElseThrow(() -> new RuntimeException("Match not found"));
-
-        if (match.getWinnerTeam() == null) {
-            throw new RuntimeException("Match winner not determined");
+        // Validation is done in controller, so match should exist and have winner
+        Match match = matchRepository.findById(matchId).orElse(null);
+        if (match == null || match.getWinnerTeam() == null) {
+            // This shouldn't happen if validation is correct, but handle gracefully
+            System.err.println("evaluatePredictions called with invalid match: " + matchId);
+            return;
         }
 
         List<Prediction> predictions = predictionRepository.findMatchPredictions(matchId);
@@ -304,6 +306,41 @@ public class PredictionService {
             System.err.println("MongoDB update error (non-fatal): " + e.getMessage());
         }
     }
+
+    /**
+     * Find predictions in MongoDB that have invalid userIds (user doesn't exist in H2 or MongoDB)
+     */
+    public List<UserPrediction> findInvalidPredictions() {
+        List<UserPrediction> allPredictions = userPredictionRepository.findAll();
+        return allPredictions.stream()
+                .filter(pred -> {
+                    // Check if user exists in H2
+                    boolean existsInH2 = userRepository.existsById(pred.getUserId());
+                    if (existsInH2) return false;
+
+                    // Check if user exists in MongoDB
+                    try {
+                        boolean existsInMongo = userMongoRepository.existsById(pred.getUserId());
+                        return !existsInMongo;
+                    } catch (Exception e) {
+                        System.err.println("Error checking MongoDB for user " + pred.getUserId() + ": " + e.getMessage());
+                        return true; // Consider invalid if we can't check
+                    }
+                })
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    /**
+     * Remove all predictions with invalid userIds from MongoDB
+     */
+    public int removeInvalidPredictions() {
+        List<UserPrediction> invalidPredictions = findInvalidPredictions();
+        if (!invalidPredictions.isEmpty()) {
+            userPredictionRepository.deleteAll(invalidPredictions);
+            System.out.println("Removed " + invalidPredictions.size() + " invalid predictions from MongoDB");
+        }
+        return invalidPredictions.size();
+    }
     
     @Transactional
     public void saveQuizPrediction(Long userId, Long matchId, java.util.Map<String, String> answers) {
@@ -378,6 +415,27 @@ public class PredictionService {
             System.err.println("Error saving quiz prediction: " + e.getMessage());
             e.printStackTrace();
             throw new RuntimeException("Failed to save quiz prediction: " + e.getMessage(), e);
+        }
+    }
+
+    public List<UserPrediction> findInvalidPredictions() {
+        List<UserPrediction> allPredictions = userPredictionRepository.findAll();
+        return allPredictions.stream()
+            .filter(pred -> {
+                Long userId = pred.getUserId();
+                Optional<User> h2User = userRepository.findById(userId);
+                if (h2User.isPresent()) return false; // valid
+                Optional<UserMongo> mongoUser = userMongoRepository.findById(userId);
+                return mongoUser.isEmpty(); // invalid if not in mongo either
+            })
+            .collect(Collectors.toList());
+    }
+
+    public void removeInvalidPredictions() {
+        List<UserPrediction> invalidPredictions = findInvalidPredictions();
+        if (!invalidPredictions.isEmpty()) {
+            userPredictionRepository.deleteAll(invalidPredictions);
+            System.out.println("Removed " + invalidPredictions.size() + " invalid predictions from MongoDB");
         }
     }
 }

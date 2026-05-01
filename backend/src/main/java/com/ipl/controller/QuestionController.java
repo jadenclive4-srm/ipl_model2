@@ -3,7 +3,9 @@ package com.ipl.controller;
 import com.ipl.dto.QuestionDTO;
 import com.ipl.dto.UserAnswerDTO;
 import com.ipl.model.Question;
+import com.ipl.model.User;
 import com.ipl.service.QuestionService;
+import com.ipl.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -17,29 +19,33 @@ import java.util.ArrayList;
 @RequestMapping("/api/questions")
 @RequiredArgsConstructor
 public class QuestionController {
-    
+
     private final QuestionService questionService;
+    private final UserService userService;
     
     @GetMapping("/match/{matchId}")
-    public ResponseEntity<List<QuestionDTO>> getQuestionsByMatchId(
-            @PathVariable Long matchId,
-            @RequestParam Long userId) {
-        List<QuestionDTO> questions = questionService.getQuestionsByMatchId(matchId, userId);
+    public ResponseEntity<List<QuestionDTO>> getQuestionsByMatchId(@PathVariable Long matchId) {
+        // Get the authenticated user
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+        List<QuestionDTO> questions = questionService.getQuestionsByMatchId(matchId, authenticatedUser.getId());
         return ResponseEntity.ok(questions);
     }
     
     @PostMapping("/answer")
     public ResponseEntity<UserAnswerDTO> submitAnswer(
-            @RequestParam Long userId,
             @RequestParam Long questionId,
             @RequestParam String selectedOption) {
-        UserAnswerDTO answer = questionService.submitAnswer(userId, questionId, selectedOption);
+        // Get the authenticated user instead of trusting userId from request
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+        UserAnswerDTO answer = questionService.submitAnswer(authenticatedUser.getId(), questionId, selectedOption);
         return ResponseEntity.ok(answer);
     }
     
     @PostMapping("/answers/batch")
     public ResponseEntity<List<UserAnswerDTO>> submitAnswers(@RequestBody BatchAnswerRequest request) {
-        List<UserAnswerDTO> result = questionService.submitAnswers(request.getUserId(), request.getMatchId(), request.getAnswers(), request.getQuestionIds());
+        // Get the authenticated user instead of trusting userId from request
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+        List<UserAnswerDTO> result = questionService.submitAnswers(authenticatedUser.getId(), request.getMatchId(), request.getAnswers(), request.getQuestionIds());
         return ResponseEntity.ok(result);
     }
     
@@ -61,10 +67,10 @@ public class QuestionController {
     }
     
     @GetMapping("/user/match/{matchId}")
-    public ResponseEntity<List<UserAnswerDTO>> getUserAnswers(
-            @RequestParam Long userId,
-            @PathVariable Long matchId) {
-        List<UserAnswerDTO> answers = questionService.getUserAnswersByMatchId(userId, matchId);
+    public ResponseEntity<List<UserAnswerDTO>> getUserAnswers(@PathVariable Long matchId) {
+        // Get the authenticated user
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+        List<UserAnswerDTO> answers = questionService.getUserAnswersByMatchId(authenticatedUser.getId(), matchId);
         return ResponseEntity.ok(answers);
     }
     
