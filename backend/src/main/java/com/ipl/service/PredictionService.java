@@ -417,25 +417,4 @@ public class PredictionService {
             throw new RuntimeException("Failed to save quiz prediction: " + e.getMessage(), e);
         }
     }
-
-    public List<UserPrediction> findInvalidPredictions() {
-        List<UserPrediction> allPredictions = userPredictionRepository.findAll();
-        return allPredictions.stream()
-            .filter(pred -> {
-                Long userId = pred.getUserId();
-                Optional<User> h2User = userRepository.findById(userId);
-                if (h2User.isPresent()) return false; // valid
-                Optional<UserMongo> mongoUser = userMongoRepository.findById(userId);
-                return mongoUser.isEmpty(); // invalid if not in mongo either
-            })
-            .collect(Collectors.toList());
-    }
-
-    public void removeInvalidPredictions() {
-        List<UserPrediction> invalidPredictions = findInvalidPredictions();
-        if (!invalidPredictions.isEmpty()) {
-            userPredictionRepository.deleteAll(invalidPredictions);
-            System.out.println("Removed " + invalidPredictions.size() + " invalid predictions from MongoDB");
-        }
-    }
 }

@@ -320,28 +320,4 @@ public class PredictionController {
         dto.setAwayProbability(mongoPred.getAwayProbability());
         return dto;
     }
-
-    @GetMapping("/invalid")
-    public ResponseEntity<List<UserPredictionDTO>> getInvalidPredictions() {
-        List<UserPrediction> invalidPreds = predictionService.findInvalidPredictions();
-
-        List<UserPredictionDTO> result = invalidPreds.stream()
-            .map(pred -> new UserPredictionDTO(
-                pred.getUserId(),
-                pred.getUsername(),
-                pred.getPredictedWinnerName(),
-                pred.getMatchId()
-            ))
-            .collect(Collectors.toList());
-
-        return ResponseEntity.ok(result);
-    }
-
-    @DeleteMapping("/invalid")
-    public ResponseEntity<Map<String, String>> removeInvalidPredictions() {
-        predictionService.removeInvalidPredictions();
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Invalid predictions removed successfully");
-        return ResponseEntity.ok(response);
-    }
 }
