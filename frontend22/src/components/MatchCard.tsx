@@ -61,7 +61,8 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictC
   const isCompleted = match.matchStatus === 'COMPLETED';
   const isLive = match.matchStatus === 'LIVE';
   const isUpcoming = match.matchStatus === 'UPCOMING' || match.matchStatus === 'SCHEDULED';
-  const hasPrediction = userPrediction !== undefined && userPrediction.predictedWinnerId != null;
+  // Show prediction button if no prediction exists or prediction data is unavailable
+  const hasPrediction = userPrediction && userPrediction.predictedWinnerId != null;
 
   return (
     <div

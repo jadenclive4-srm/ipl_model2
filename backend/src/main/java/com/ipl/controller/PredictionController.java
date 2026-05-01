@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @RestController
@@ -48,6 +49,13 @@ public class PredictionController {
         List<PredictionDTO> predictions = predictionService.getUserPredictions(userId).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+        if (predictions.isEmpty()) {
+            // Try MongoDB for admin-created users
+            List<UserPrediction> mongoPreds = userPredictionRepository.findByUserId(userId);
+            predictions = mongoPreds.stream()
+                    .map(this::convertFromMongoToDTO)
+                    .collect(Collectors.toList());
+        }
         return ResponseEntity.ok(predictions);
     }
     
@@ -63,9 +71,18 @@ public class PredictionController {
     public ResponseEntity<PredictionDTO> getUserMatchPrediction(
             @PathVariable Long userId,
             @PathVariable Long matchId) {
-        return predictionService.getUserMatchPrediction(userId, matchId)
-                .map(prediction -> ResponseEntity.ok(convertToDTO(prediction)))
-                .orElse(ResponseEntity.notFound().build());
+        Optional<Prediction> pred = predictionService.getUserMatchPrediction(userId, matchId);
+        if (pred.isPresent()) {
+            return ResponseEntity.ok(convertToDTO(pred.get()));
+        } else {
+            // Try MongoDB for admin-created users
+            Optional<UserPrediction> mongoPred = userPredictionRepository.findByUserIdAndMatchId(userId, matchId);
+            if (mongoPred.isPresent()) {
+                return ResponseEntity.ok(convertFromMongoToDTO(mongoPred.get()));
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+        }
     }
     
     @PostMapping("/evaluate/{matchId}")
@@ -87,6 +104,19 @@ public class PredictionController {
         List<PredictionDTO> predictions = predictionService.getMatchPredictions(matchId).stream()
                 .map(this::convertToDTO)
                 .collect(Collectors.toList());
+
+        // Also include MongoDB predictions for admin-created users
+        List<UserPrediction> mongoPredictions = userPredictionRepository.findByMatchId(matchId);
+        for (UserPrediction mongoPred : mongoPredictions) {
+            // Check if this MongoDB prediction already has a corresponding H2 prediction
+            boolean alreadyIncluded = predictions.stream()
+                    .anyMatch(dto -> dto.getUserId().equals(mongoPred.getUserId()));
+
+            if (!alreadyIncluded) {
+                predictions.add(convertFromMongoToDTO(mongoPred));
+            }
+        }
+
         return ResponseEntity.ok(predictions);
     }
     
@@ -206,18 +236,34 @@ public class PredictionController {
         dto.setUserId(prediction.getUser().getId());
         dto.setUsername(prediction.getUser().getUsername());
         dto.setMatchId(prediction.getMatch().getId());
-        
+
         if (prediction.getPredictedWinner() != null) {
             dto.setPredictedWinnerId(prediction.getPredictedWinner().getId());
             dto.setPredictedWinnerName(prediction.getPredictedWinner().getTeamName());
         }
-        
+
         dto.setIsCorrect(prediction.getIsCorrect());
         dto.setPointsEarned(prediction.getPointsEarned());
         dto.setCreatedAt(prediction.getCreatedAt());
         dto.setHomeProbability(prediction.getHomeProbability());
         dto.setAwayProbability(prediction.getAwayProbability());
-        
+
+        return dto;
+    }
+
+    private PredictionDTO convertFromMongoToDTO(UserPrediction mongoPred) {
+        PredictionDTO dto = new PredictionDTO();
+        dto.setId(null); // MongoDB id is String, not used in frontend
+        dto.setUserId(mongoPred.getUserId());
+        dto.setUsername(mongoPred.getUsername());
+        dto.setMatchId(mongoPred.getMatchId());
+        dto.setPredictedWinnerId(mongoPred.getPredictedWinnerId());
+        dto.setPredictedWinnerName(mongoPred.getPredictedWinnerName());
+        dto.setIsCorrect(mongoPred.getIsCorrect());
+        dto.setPointsEarned(mongoPred.getPointsEarned());
+        dto.setCreatedAt(mongoPred.getCreatedAt());
+        dto.setHomeProbability(mongoPred.getHomeProbability());
+        dto.setAwayProbability(mongoPred.getAwayProbability());
         return dto;
     }
 }

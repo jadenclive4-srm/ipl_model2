@@ -32,7 +32,10 @@ const Dashboard: React.FC = () => {
         apiService.getTodaysMatches().catch(() => []),
         apiService.getUpcomingMatches().catch(() => []),
         apiService.getAllMatches(),
-        user ? apiService.getUserPredictions(user.id) : Promise.resolve([]),
+        user ? apiService.getUserPredictions(user.id).catch((error) => {
+          console.log('Failed to load user predictions, assuming none exist:', error);
+          return [];
+        }) : Promise.resolve([]),
         user ? apiService.getUserPoints(user.id).catch(() => 0) : Promise.resolve(0),
       ]);
       

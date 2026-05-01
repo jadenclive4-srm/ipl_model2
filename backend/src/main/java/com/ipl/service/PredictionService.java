@@ -6,6 +6,7 @@ import com.ipl.model.Prediction;
 import com.ipl.model.QuizAnswer;
 import com.ipl.model.Team;
 import com.ipl.model.User;
+import com.ipl.model.mongo.UserMongo;
 import com.ipl.model.mongo.UserPrediction;
 import com.ipl.model.mongo.UserResponse;
 import com.ipl.repository.MatchRepository;
@@ -13,6 +14,7 @@ import com.ipl.repository.PredictionRepository;
 import com.ipl.repository.QuizAnswerRepository;
 import com.ipl.repository.TeamRepository;
 import com.ipl.repository.UserRepository;
+import com.ipl.repository.mongo.UserMongoRepository;
 import com.ipl.repository.mongo.UserPredictionRepository;
 import com.ipl.repository.mongo.UserResponseRepository;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class PredictionService {
     private final MatchRepository matchRepository;
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
+    private final UserMongoRepository userMongoRepository;
     private final UserPredictionRepository userPredictionRepository;
     private final QuizAnswerRepository quizAnswerRepository;
     private final UserResponseRepository userResponseRepository;
@@ -103,40 +106,72 @@ public class PredictionService {
     public void evaluatePredictions(Long matchId) {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new RuntimeException("Match not found"));
-        
+
         if (match.getWinnerTeam() == null) {
             throw new RuntimeException("Match winner not determined");
         }
-        
+
         List<Prediction> predictions = predictionRepository.findMatchPredictions(matchId);
         Team winner = match.getWinnerTeam();
-        
+
+        // Evaluate H2 predictions
         for (Prediction prediction : predictions) {
             boolean isCorrect = false;
             int pointsEarned = 0;
-            
-            if (prediction.getPredictedWinner() != null && 
+
+            if (prediction.getPredictedWinner() != null &&
                 prediction.getPredictedWinner().getId().equals(winner.getId())) {
                 isCorrect = true;
                 pointsEarned = calculatePoints(prediction.getHomeProbability(), prediction.getAwayProbability());
             }
-            
+
             prediction.setIsCorrect(isCorrect);
             prediction.setPointsEarned(pointsEarned);
             predictionRepository.save(prediction);
-            
+
             if (pointsEarned > 0) {
                 userPointsService.updateUserPoints(prediction.getUser().getId(), pointsEarned);
             }
-            
+
             updateUserPredictionInMongo(prediction.getUser().getId(), matchId, isCorrect, pointsEarned);
+        }
+
+        // Evaluate MongoDB predictions (for admin-created users)
+        List<UserPrediction> mongoPredictions = userPredictionRepository.findByMatchId(matchId);
+        for (UserPrediction mongoPred : mongoPredictions) {
+            // Skip if this prediction was already evaluated above (has corresponding H2 prediction)
+            boolean alreadyEvaluated = predictions.stream()
+                    .anyMatch(h2Pred -> h2Pred.getUser().getId().equals(mongoPred.getUserId()));
+
+            if (!alreadyEvaluated) {
+                boolean isCorrect = false;
+                int pointsEarned = 0;
+
+                if (mongoPred.getPredictedWinnerId() != null &&
+                    mongoPred.getPredictedWinnerId().equals(winner.getId())) {
+                    isCorrect = true;
+                    pointsEarned = calculatePoints(mongoPred.getHomeProbability(), mongoPred.getAwayProbability());
+                }
+
+                mongoPred.setIsCorrect(isCorrect);
+                mongoPred.setPointsEarned(pointsEarned);
+                userPredictionRepository.save(mongoPred);
+
+                if (pointsEarned > 0) {
+                    userPointsService.updateUserPoints(mongoPred.getUserId(), pointsEarned);
+                }
+
+                System.out.println("Evaluated MongoDB prediction for user " + mongoPred.getUserId() +
+                    ": correct=" + isCorrect + ", points=" + pointsEarned);
+            }
         }
     }
     
     @Transactional
     public void resetPredictions(Long matchId) {
+        // Reset H2 predictions
         List<Prediction> predictions = predictionRepository.findMatchPredictions(matchId);
-        
+
         for (Prediction prediction : predictions) {
             Long userId = prediction.getUser().getId();
             if (prediction.getIsCorrect() != null && prediction.getIsCorrect()) {
@@ -147,8 +182,24 @@ public class PredictionService {
             prediction.setIsCorrect(false);
             prediction.setPointsEarned(0);
             predictionRepository.save(prediction);
-            
+
             deleteUserPredictionFromMongo(userId, matchId);
+        }
+
+        // Reset MongoDB predictions (for admin-created users)
+        List<UserPrediction> mongoPredictions = userPredictionRepository.findByMatchId(matchId);
+        for (UserPrediction mongoPred : mongoPredictions) {
+            Long userId = mongoPred.getUserId();
+            if (mongoPred.getIsCorrect() != null && mongoPred.getIsCorrect()) {
+                if (mongoPred.getPointsEarned() != null && mongoPred.getPointsEarned() > 0) {
+                    userPointsService.updateUserPoints(userId, -mongoPred.getPointsEarned());
+                }
+            }
+            mongoPred.setIsCorrect(false);
+            mongoPred.setPointsEarned(0);
+            userPredictionRepository.save(mongoPred);
+
+            System.out.println("Reset MongoDB prediction for user " + userId + " on match " + matchId);
         }
     }
     
@@ -258,28 +309,46 @@ public class PredictionService {
     public void saveQuizPrediction(Long userId, Long matchId, java.util.Map<String, String> answers) {
         try {
             System.out.println("saveQuizPrediction called with: userId=" + userId + ", matchId=" + matchId + ", answers=" + answers);
-            
-            User user = userService.findById(userId)
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
+
+            // Try to find user in H2 first, then MongoDB
+            String username;
+            try {
+                User user = userService.findById(userId)
+                        .orElseThrow(() -> new RuntimeException("User not found"));
+                username = user.getUsername();
+            } catch (Exception e) {
+                // If H2 user not found, check MongoDB directly
+                try {
+                    Optional<UserMongo> mongoUser = userMongoRepository.findById(userId);
+                    if (mongoUser.isPresent()) {
+                        username = mongoUser.get().getUsername();
+                    } else {
+                        throw new RuntimeException("User not found in both H2 and MongoDB");
+                    }
+                } catch (Exception mongoEx) {
+                    System.err.println("Error checking MongoDB for user: " + mongoEx.getMessage());
+                    throw new RuntimeException("User not found: " + e.getMessage());
+                }
+            }
+
             // Check if already submitted
             if (userResponseRepository.existsByUserIdAndMatchId(userId, matchId)) {
                 throw new RuntimeException("You have already submitted quiz answers for this match");
             }
-            
+
             List<UserResponse.QuestionResponse> mongoResponses = new ArrayList<>();
-            
+
             if (answers == null || answers.isEmpty()) {
                 System.err.println("ERROR: answers map is empty or null!");
                 throw new RuntimeException("Answers map is empty");
             }
-            
+
             for (java.util.Map.Entry<String, String> entry : answers.entrySet()) {
                 String questionId = entry.getKey();
                 String answer = entry.getValue();
-                
+
                 System.out.println("Saving quiz answer - questionId: " + questionId + ", answer: " + answer);
-                
+
                 UserResponse.QuestionResponse qr = new UserResponse.QuestionResponse();
                 qr.setQuestionId(questionId);
                 qr.setSelectedOption(answer);
@@ -287,23 +356,23 @@ public class PredictionService {
                 qr.setPointsEarned(0);
                 mongoResponses.add(qr);
             }
-            
+
             UserResponse userResponse = new UserResponse();
             userResponse.setUserId(userId);
-            userResponse.setUsername(user.getUsername());
+            userResponse.setUsername(username);
             userResponse.setMatchId(matchId);
             userResponse.setResponses(mongoResponses);
             userResponse.setCreatedAt(System.currentTimeMillis());
-            
+
             System.out.println("UserResponse object: " + userResponse);
             System.out.println("Responses list size: " + mongoResponses.size());
             for (int i = 0; i < mongoResponses.size(); i++) {
                 System.out.println("Response " + i + ": " + mongoResponses.get(i));
             }
-            
+
             UserResponse saved = userResponseRepository.save(userResponse);
             System.out.println("Saved UserResponse with id: " + saved.getId());
-            
+
             System.out.println("Quiz answers saved successfully for user: " + userId + ", match: " + matchId);
         } catch (Exception e) {
             System.err.println("Error saving quiz prediction: " + e.getMessage());

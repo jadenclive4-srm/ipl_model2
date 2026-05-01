@@ -14,6 +14,7 @@ import com.ipl.repository.UserAnswerRepository;
 import com.ipl.repository.UserRepository;
 import com.ipl.repository.MatchRepository;
 import com.ipl.repository.mongo.QuizCorrectAnswersRepository;
+import com.ipl.repository.mongo.UserMongoRepository;
 import com.ipl.repository.mongo.UserResponseRepository;
 import com.ipl.service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final UserAnswerRepository userAnswerRepository;
     private final UserRepository userRepository;
+    private final UserMongoRepository userMongoRepository;
     private final UserService userService;
     private final MatchRepository matchRepository;
     private final UserResponseRepository userResponseRepository;
@@ -61,8 +63,31 @@ public class QuestionService {
     
     @Transactional
     public UserAnswerDTO submitAnswer(Long userId, Long questionId, String selectedOption) {
-        User user = userService.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        // Try to find user in H2 first, then MongoDB
+        User user;
+        try {
+            user = userService.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+        } catch (Exception e) {
+            // If H2 user not found, create a minimal User object from MongoDB
+            try {
+                Optional<com.ipl.model.mongo.UserMongo> mongoUser = userMongoRepository.findById(userId);
+                if (mongoUser.isPresent()) {
+                    com.ipl.model.mongo.UserMongo um = mongoUser.get();
+                    user = new User();
+                    user.setId(um.getId());
+                    user.setUsername(um.getUsername());
+                    user.setEmail(um.getEmail());
+                    user.setFullName(um.getFullName());
+                    user.setRole(um.getRole());
+                } else {
+                    throw new RuntimeException("User not found in both H2 and MongoDB");
+                }
+            } catch (Exception mongoEx) {
+                System.err.println("Error checking MongoDB for user: " + mongoEx.getMessage());
+                throw new RuntimeException("User not found: " + e.getMessage());
+            }
+        }
         
         Question question = questionRepository.findById(questionId)
                 .orElseThrow(() -> new RuntimeException("Question not found"));
@@ -101,16 +126,34 @@ public class QuestionService {
     
     @Transactional
     public List<UserAnswerDTO> submitAnswers(Long userId, Long matchId, List<String> answers, List<Long> questionIds) {
-        User user = userService.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-        
+        // Try to find user in H2 first, then MongoDB
+        String username;
+        try {
+            User user = userService.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            username = user.getUsername();
+        } catch (Exception e) {
+            // If H2 user not found, check MongoDB directly
+            try {
+                Optional<com.ipl.model.mongo.UserMongo> mongoUser = userMongoRepository.findById(userId);
+                if (mongoUser.isPresent()) {
+                    username = mongoUser.get().getUsername();
+                } else {
+                    throw new RuntimeException("User not found in both H2 and MongoDB");
+                }
+            } catch (Exception mongoEx) {
+                System.err.println("Error checking MongoDB for user: " + mongoEx.getMessage());
+                throw new RuntimeException("User not found: " + e.getMessage());
+            }
+        }
+
         List<UserAnswerDTO> result = new ArrayList<>();
         List<UserResponse.QuestionResponse> questionResponses = new ArrayList<>();
-        
+
         for (int i = 0; i < questionIds.size(); i++) {
             UserAnswerDTO answer = submitAnswer(userId, questionIds.get(i), answers.get(i));
             result.add(answer);
-            
+
             UserResponse.QuestionResponse qr = new UserResponse.QuestionResponse();
             qr.setQuestionId(String.valueOf(questionIds.get(i)));
             qr.setSelectedOption(answers.get(i));
@@ -118,9 +161,9 @@ public class QuestionService {
             qr.setPointsEarned(answer.getPointsEarned());
             questionResponses.add(qr);
         }
-        
-        saveUserResponseToMongo(userId, user.getUsername(), matchId, questionResponses);
-        
+
+        saveUserResponseToMongo(userId, username, matchId, questionResponses);
+
         return result;
     }
     

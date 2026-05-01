@@ -117,14 +117,18 @@ const MatchPrediction: React.FC = () => {
         try {
           const pred = await apiService.getUserMatchPrediction(user.id, parseInt(matchId));
           setExistingPrediction(pred);
-        } catch {
+        } catch (error) {
+          console.log('Failed to load user prediction, assuming none exists:', error);
+          // Explicitly set to null to ensure prediction buttons show
           setExistingPrediction(null);
         }
 
         try {
           const quizStatus = await apiService.getQuizStatus(user.id, parseInt(matchId));
-          setQuizSubmitted(quizStatus.submitted);
-        } catch {
+          setQuizSubmitted(quizStatus.submitted || false);
+        } catch (error) {
+          console.log('Failed to load quiz status, assuming not submitted:', error);
+          // Explicitly set to false to ensure quiz options show
           setQuizSubmitted(false);
         }
       }
@@ -249,7 +253,7 @@ const MatchPrediction: React.FC = () => {
   const now = Date.now();
   const predictionCloseTime = match.matchDate - (30 * 60 * 1000);
   const isPredictionOpen = !isCompleted && !isLive && now < predictionCloseTime;
-  const hasPredicted = existingPrediction !== null && existingPrediction.predictedWinnerId !== null;
+  const hasPredicted = existingPrediction && existingPrediction.predictedWinnerId !== null;
   
   const matchDate = new Date(match.matchDate);
   const today = new Date();
