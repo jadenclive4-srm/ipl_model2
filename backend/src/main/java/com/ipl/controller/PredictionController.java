@@ -49,6 +49,7 @@ public class PredictionController {
             );
             return ResponseEntity.ok(convertToDTO(prediction));
         } catch (RuntimeException e) {
+            System.out.println("Error creating prediction: " + e.getMessage());
             Map<String, String> error = new HashMap<>();
             error.put("error", e.getMessage());
             return ResponseEntity.badRequest().body(error);
@@ -60,16 +61,11 @@ public class PredictionController {
         // Get the authenticated user instead of trusting userId from path
         User authenticatedUser = userService.getCurrentAuthenticatedUser();
 
-        List<PredictionDTO> predictions = predictionService.getUserPredictions(authenticatedUser.getId()).stream()
-                .map(this::convertToDTO)
+        // Temporarily only use MongoDB for all users
+        List<UserPrediction> mongoPreds = userPredictionRepository.findByUserId(authenticatedUser.getId());
+        List<PredictionDTO> predictions = mongoPreds.stream()
+                .map(this::convertFromMongoToDTO)
                 .collect(Collectors.toList());
-        if (predictions.isEmpty()) {
-            // Try MongoDB for admin-created users
-            List<UserPrediction> mongoPreds = userPredictionRepository.findByUserId(authenticatedUser.getId());
-            predictions = mongoPreds.stream()
-                    .map(this::convertFromMongoToDTO)
-                    .collect(Collectors.toList());
-        }
         return ResponseEntity.ok(predictions);
     }
     
@@ -86,17 +82,12 @@ public class PredictionController {
         // Get the authenticated user
         User authenticatedUser = userService.getCurrentAuthenticatedUser();
 
-        Optional<Prediction> pred = predictionService.getUserMatchPrediction(authenticatedUser.getId(), matchId);
-        if (pred.isPresent()) {
-            return ResponseEntity.ok(convertToDTO(pred.get()));
+        // Temporarily only use MongoDB for all users
+        Optional<UserPrediction> mongoPred = userPredictionRepository.findByUserIdAndMatchId(authenticatedUser.getId(), matchId);
+        if (mongoPred.isPresent()) {
+            return ResponseEntity.ok(convertFromMongoToDTO(mongoPred.get()));
         } else {
-            // Try MongoDB for admin-created users
-            Optional<UserPrediction> mongoPred = userPredictionRepository.findByUserIdAndMatchId(authenticatedUser.getId(), matchId);
-            if (mongoPred.isPresent()) {
-                return ResponseEntity.ok(convertFromMongoToDTO(mongoPred.get()));
-            } else {
-                return ResponseEntity.notFound().build();
-            }
+            return ResponseEntity.notFound().build();
         }
     }
     
@@ -281,6 +272,14 @@ public class PredictionController {
         int removedCount = predictionService.removeInvalidPredictions();
         Map<String, Integer> response = new HashMap<>();
         response.put("removed", removedCount);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/fix-userids")
+    public ResponseEntity<Map<String, Integer>> fixUserIdsInPredictions() {
+        int fixedCount = predictionService.fixUserIdsInPredictions();
+        Map<String, Integer> response = new HashMap<>();
+        response.put("fixed", fixedCount);
         return ResponseEntity.ok(response);
     }
     

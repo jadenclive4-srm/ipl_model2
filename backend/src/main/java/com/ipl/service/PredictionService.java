@@ -46,8 +46,50 @@ public class PredictionService {
     @Lazy
     private UserPointsService userPointsService;
     
+    /**
+     * Get the expected username for a given userId
+     */
+    private String getExpectedUsernameForUserId(Long userId) {
+        try {
+            // Try MongoDB first (canonical source)
+            Optional<com.ipl.model.mongo.UserMongo> mongoUser = userMongoRepository.findById(userId);
+            if (mongoUser.isPresent()) {
+                return mongoUser.get().getUsername();
+            }
+
+            // Fallback to H2
+            Optional<com.ipl.model.User> h2User = userRepository.findById(userId);
+            if (h2User.isPresent()) {
+                return h2User.get().getUsername();
+            }
+        } catch (Exception e) {
+            System.err.println("Error getting username for userId " + userId + ": " + e.getMessage());
+        }
+        return null;
+    }
+
     @Transactional
     public Prediction createPrediction(Long userId, Long matchId, Long predictedWinnerId, Integer homeProbability, Integer awayProbability) {
+        // Validate userId exists
+        if (!userService.isValidUserId(userId)) {
+            throw new RuntimeException("Invalid userId: " + userId + " - User does not exist in database");
+        }
+
+        // Log prediction creation details for debugging
+        System.out.println("=== PREDICTION CREATION DEBUG ===");
+        System.out.println("userId: " + userId);
+        System.out.println("matchId: " + matchId);
+        System.out.println("predictedWinnerId: " + predictedWinnerId);
+        System.out.println("Current authenticated user: " + (userService.getCurrentAuthenticatedUser() != null ?
+            userService.getCurrentAuthenticatedUser().getUsername() : "null"));
+        System.out.println("===================================");
+
+        // Check for existing prediction in MongoDB (primary storage)
+        if (userPredictionRepository.existsByUserIdAndMatchId(userId, matchId)) {
+            throw new RuntimeException("Prediction already exists for this match");
+        }
+
+        // Also check H2 for backward compatibility (though currently disabled)
         if (predictionRepository.existsByUserIdAndMatchId(userId, matchId)) {
             throw new RuntimeException("Prediction already exists for this match");
         }
@@ -82,13 +124,30 @@ public class PredictionService {
         prediction.setPointsEarned(0);
         prediction.setCreatedAt(System.currentTimeMillis());
         
-        Prediction saved = predictionRepository.save(prediction);
-        
-        saveUserPredictionToMongo(userId, user.getUsername(), matchId, predictedWinnerId, 
-                predictedWinner != null ? predictedWinner.getTeamName() : null, 
+        // Temporarily disable H2 storage to test if bug is related to H2
+        // Prediction saved = predictionRepository.save(prediction);
+
+        // Ensure we use the authenticated user's username, not any username from request
+        String authenticatedUsername = user.getUsername();
+        System.out.println("Storing prediction for authenticated user: userId=" + userId + ", username='" + authenticatedUsername + "'");
+
+        saveUserPredictionToMongo(userId, authenticatedUsername, matchId, predictedWinnerId,
+                predictedWinner != null ? predictedWinner.getTeamName() : null,
                 homeProbability, awayProbability);
-        
-        return saved;
+
+        // Return a dummy prediction object for now
+        Prediction dummyPrediction = new Prediction();
+        dummyPrediction.setUser(user);
+        dummyPrediction.setMatch(match);
+        dummyPrediction.setPredictedWinner(predictedWinner);
+        dummyPrediction.setHomeProbability(homeProbability);
+        dummyPrediction.setAwayProbability(awayProbability);
+        dummyPrediction.setIsCorrect(false);
+        dummyPrediction.setPointsEarned(0);
+        dummyPrediction.setCreatedAt(System.currentTimeMillis());
+        dummyPrediction.setId(-1L); // Dummy ID
+
+        return dummyPrediction;
     }
     
     public List<Prediction> getUserPredictions(Long userId) {
@@ -96,7 +155,8 @@ public class PredictionService {
     }
     
     public List<Prediction> getMatchPredictions(Long matchId) {
-        return predictionRepository.findMatchPredictions(matchId);
+        // Temporarily return empty list since H2 storage is disabled
+        return new ArrayList<>();
     }
     
     public Optional<Prediction> getUserMatchPrediction(Long userId, Long matchId) {
@@ -113,82 +173,36 @@ public class PredictionService {
             return;
         }
 
-        List<Prediction> predictions = predictionRepository.findMatchPredictions(matchId);
+        // Temporarily only evaluate MongoDB predictions since H2 storage is disabled
+        List<UserPrediction> mongoPredictions = userPredictionRepository.findByMatchId(matchId);
         Team winner = match.getWinnerTeam();
 
-        // Evaluate H2 predictions
-        for (Prediction prediction : predictions) {
+        for (UserPrediction mongoPred : mongoPredictions) {
             boolean isCorrect = false;
             int pointsEarned = 0;
 
-            if (prediction.getPredictedWinner() != null &&
-                prediction.getPredictedWinner().getId().equals(winner.getId())) {
+            if (mongoPred.getPredictedWinnerId() != null &&
+                mongoPred.getPredictedWinnerId().equals(winner.getId())) {
                 isCorrect = true;
-                pointsEarned = calculatePoints(prediction.getHomeProbability(), prediction.getAwayProbability());
+                pointsEarned = calculatePoints(mongoPred.getHomeProbability(), mongoPred.getAwayProbability());
             }
 
-            prediction.setIsCorrect(isCorrect);
-            prediction.setPointsEarned(pointsEarned);
-            predictionRepository.save(prediction);
+            mongoPred.setIsCorrect(isCorrect);
+            mongoPred.setPointsEarned(pointsEarned);
+            userPredictionRepository.save(mongoPred);
 
             if (pointsEarned > 0) {
-                userPointsService.updateUserPoints(prediction.getUser().getId(), pointsEarned);
+                userPointsService.updateUserPoints(mongoPred.getUserId(), pointsEarned);
             }
 
-            updateUserPredictionInMongo(prediction.getUser().getId(), matchId, isCorrect, pointsEarned);
-        }
-
-        // Evaluate MongoDB predictions (for admin-created users)
-        List<UserPrediction> mongoPredictions = userPredictionRepository.findByMatchId(matchId);
-        for (UserPrediction mongoPred : mongoPredictions) {
-            // Skip if this prediction was already evaluated above (has corresponding H2 prediction)
-            boolean alreadyEvaluated = predictions.stream()
-                    .anyMatch(h2Pred -> h2Pred.getUser().getId().equals(mongoPred.getUserId()));
-
-            if (!alreadyEvaluated) {
-                boolean isCorrect = false;
-                int pointsEarned = 0;
-
-                if (mongoPred.getPredictedWinnerId() != null &&
-                    mongoPred.getPredictedWinnerId().equals(winner.getId())) {
-                    isCorrect = true;
-                    pointsEarned = calculatePoints(mongoPred.getHomeProbability(), mongoPred.getAwayProbability());
-                }
-
-                mongoPred.setIsCorrect(isCorrect);
-                mongoPred.setPointsEarned(pointsEarned);
-                userPredictionRepository.save(mongoPred);
-
-                if (pointsEarned > 0) {
-                    userPointsService.updateUserPoints(mongoPred.getUserId(), pointsEarned);
-                }
-
-                System.out.println("Evaluated MongoDB prediction for user " + mongoPred.getUserId() +
-                    ": correct=" + isCorrect + ", points=" + pointsEarned);
-            }
+            System.out.println("Evaluated MongoDB prediction for user " + mongoPred.getUserId() +
+                ": correct=" + isCorrect + ", points=" + pointsEarned);
         }
     }
     
     @Transactional
     public void resetPredictions(Long matchId) {
-        // Reset H2 predictions
-        List<Prediction> predictions = predictionRepository.findMatchPredictions(matchId);
-
-        for (Prediction prediction : predictions) {
-            Long userId = prediction.getUser().getId();
-            if (prediction.getIsCorrect() != null && prediction.getIsCorrect()) {
-                if (prediction.getPointsEarned() != null && prediction.getPointsEarned() > 0) {
-                    userPointsService.updateUserPoints(userId, -prediction.getPointsEarned());
-                }
-            }
-            prediction.setIsCorrect(false);
-            prediction.setPointsEarned(0);
-            predictionRepository.save(prediction);
-
-            deleteUserPredictionFromMongo(userId, matchId);
-        }
-
-        // Reset MongoDB predictions (for admin-created users)
+        // Temporarily only reset MongoDB predictions since H2 storage is disabled
         List<UserPrediction> mongoPredictions = userPredictionRepository.findByMatchId(matchId);
         for (UserPrediction mongoPred : mongoPredictions) {
             Long userId = mongoPred.getUserId();
@@ -256,11 +270,27 @@ public class PredictionService {
         return points != null ? points : 0L;
     }
     
-    private void saveUserPredictionToMongo(Long userId, String username, Long matchId, 
+    private void saveUserPredictionToMongo(Long userId, String username, Long matchId,
             Long predictedWinnerId, String predictedWinnerName, Integer homeProbability, Integer awayProbability) {
         try {
-            System.out.println("MongoDB: Saving prediction for user=" + userId + " match=" + matchId);
-            System.out.println("MongoDB: Attempting to connect and save...");
+            // Validate that username matches the userId
+            String expectedUsername = getExpectedUsernameForUserId(userId);
+            if (expectedUsername != null && !expectedUsername.equals(username)) {
+                System.err.println("WARNING: Username mismatch! userId=" + userId +
+                    " provided username='" + username + "' but expected='" + expectedUsername + "'");
+                System.err.println("Using correct username: '" + expectedUsername + "'");
+                username = expectedUsername; // Override with correct username
+            }
+
+            System.out.println("=== MONGODB SAVE DEBUG ===");
+            System.out.println("userId: " + userId);
+            System.out.println("username: " + username + " (validated)");
+            System.out.println("matchId: " + matchId);
+            System.out.println("predictedWinnerId: " + predictedWinnerId);
+            System.out.println("predictedWinnerName: " + predictedWinnerName);
+            System.out.println("homeProbability: " + homeProbability);
+            System.out.println("awayProbability: " + awayProbability);
+            System.out.println("===========================");
             Optional<UserPrediction> existing = userPredictionRepository.findByUserIdAndMatchId(userId, matchId);
             
             UserPrediction userPrediction;
@@ -340,6 +370,30 @@ public class PredictionService {
             System.out.println("Removed " + invalidPredictions.size() + " invalid predictions from MongoDB");
         }
         return invalidPredictions.size();
+    }
+
+    /**
+     * Fix userIds in MongoDB predictions based on username
+     */
+    public int fixUserIdsInPredictions() {
+        List<UserPrediction> allPredictions = userPredictionRepository.findAll();
+        int fixedCount = 0;
+        for (UserPrediction pred : allPredictions) {
+            try {
+                User user = userService.findByUsername(pred.getUsername()).orElse(null);
+                if (user != null && !user.getId().equals(pred.getUserId())) {
+                    System.out.println("Fixing userId for prediction: username=" + pred.getUsername() +
+                        ", old userId=" + pred.getUserId() + ", new userId=" + user.getId());
+                    pred.setUserId(user.getId());
+                    userPredictionRepository.save(pred);
+                    fixedCount++;
+                }
+            } catch (Exception e) {
+                System.err.println("Error fixing userId for prediction with username " + pred.getUsername() + ": " + e.getMessage());
+            }
+        }
+        System.out.println("Fixed userIds for " + fixedCount + " predictions");
+        return fixedCount;
     }
     
     @Transactional

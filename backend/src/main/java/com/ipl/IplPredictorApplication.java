@@ -78,7 +78,7 @@ public class IplPredictorApplication implements CommandLineRunner {
             System.err.println("   Check: MongoDB Atlas IP whitelist, credentials, network.");
         }
 
-try {
+        try {
             // Reset admin to ensure active and verified (bypasses OTP)
             userService.resetAdminUser();
 
@@ -89,6 +89,16 @@ try {
             } catch (Exception e) {
                 System.err.println("Failed to sync user points: " + e.getMessage());
             }
+
+            // Log user authentication status and consolidate identities
+            userService.logUserAuthenticationStatus();
+
+            // Fix prediction usernames to match user accounts
+            userService.fixPredictionUsernames();
+
+            // Clean up orphaned predictions
+            userService.cleanupOrphanedPredictions();
+
         } catch (Exception e) {
             System.err.println("Failed to create default users: " + e.getMessage());
         }

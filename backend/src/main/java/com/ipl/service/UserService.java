@@ -6,6 +6,7 @@ import com.ipl.model.mongo.UserMongo;
 import com.ipl.repository.EmailVerificationRepository;
 import com.ipl.repository.UserRepository;
 import com.ipl.repository.mongo.UserMongoRepository;
+import com.ipl.repository.mongo.UserPredictionRepository;
 import com.ipl.service.UserPointsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,16 +25,29 @@ import java.util.Random;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class UserService implements UserDetailsService {
-    
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final EmailVerificationRepository emailVerificationRepository;
     private final EmailService emailService;
     private final UserMongoRepository userMongoRepository;
     private final UserPointsService userPointsService;
+    private final UserPredictionRepository userPredictionRepository;
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                      EmailVerificationRepository emailVerificationRepository, EmailService emailService,
+                      UserMongoRepository userMongoRepository, UserPointsService userPointsService,
+                      UserPredictionRepository userPredictionRepository) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.emailVerificationRepository = emailVerificationRepository;
+        this.emailService = emailService;
+        this.userMongoRepository = userMongoRepository;
+        this.userPointsService = userPointsService;
+        this.userPredictionRepository = userPredictionRepository;
+    }
     
     private static final int OTP_EXPIRY_MINUTES = 10;
     private static final int OTP_LENGTH = 6;
@@ -257,35 +271,36 @@ public class UserService implements UserDetailsService {
     }
 
     public Optional<User> findByUsername(String username) {
-        // First check H2
+        // Prioritize MongoDB for consistency (canonical source)
+        try {
+            Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(username);
+            if (mongoUser.isPresent()) {
+                UserMongo um = mongoUser.get();
+                User user = new User();
+                user.setId(um.getId()); // Use MongoDB ID as canonical
+                user.setUsername(um.getUsername());
+                user.setEmail(um.getEmail());
+                user.setUniqueUserId(um.getUniqueUserId());
+                user.setPassword(um.getPassword());
+                user.setFullName(um.getFullName());
+                user.setRole(um.getRole());
+                user.setIsActive(um.getIsActive());
+                user.setEmailVerified(um.getEmailVerified());
+                user.setCreatedAt(um.getCreatedAt());
+                user.setUpdatedAt(um.getUpdatedAt());
+                return Optional.of(user);
+            }
+        } catch (Exception e) {
+            log.warn("MongoDB lookup failed for user {}, trying H2: {}", username, e.getMessage());
+        }
+
+        // Fallback to H2 for backward compatibility
         Optional<User> h2User = userRepository.findByUsername(username);
         if (h2User.isPresent()) {
+            log.debug("Found user {} in H2 only (ID: {})", username, h2User.get().getId());
             return h2User;
         }
-        
-         // Check MongoDB and convert to H2 User
-         try {
-             Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(username);
-             if (mongoUser.isPresent()) {
-                 UserMongo um = mongoUser.get();
-                 User user = new User();
-                 user.setId(um.getId());
-                 user.setUsername(um.getUsername());
-                 user.setEmail(um.getEmail());
-                 user.setUniqueUserId(um.getUniqueUserId());
-                 user.setPassword(um.getPassword());
-                 user.setFullName(um.getFullName());
-                 user.setRole(um.getRole());
-                 user.setIsActive(um.getIsActive());
-                 user.setEmailVerified(um.getEmailVerified());
-                 user.setCreatedAt(um.getCreatedAt());
-                 user.setUpdatedAt(um.getUpdatedAt());
-                 return Optional.of(user);
-             }
-          } catch (Exception e) {
-              log.error("Error checking MongoDB for user: {}", e.getMessage());
-          }
-        
+
         return Optional.empty();
     }
     
@@ -632,10 +647,457 @@ public class UserService implements UserDetailsService {
 
     /**
      * Get the currently authenticated user from SecurityContext
+     * Always returns user with canonical MongoDB userId for consistency
      */
     public User getCurrentAuthenticatedUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        return findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("Authenticated user not found: " + username));
+
+        // First try MongoDB for canonical user
+        try {
+            Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(username);
+            if (mongoUser.isPresent()) {
+                UserMongo um = mongoUser.get();
+                User user = new User();
+                user.setId(um.getId()); // Use MongoDB ID as canonical
+                user.setUsername(um.getUsername());
+                user.setEmail(um.getEmail());
+                user.setUniqueUserId(um.getUniqueUserId());
+                user.setPassword(um.getPassword());
+                user.setFullName(um.getFullName());
+                user.setRole(um.getRole());
+                user.setIsActive(um.getIsActive());
+                user.setEmailVerified(um.getEmailVerified());
+                user.setCreatedAt(um.getCreatedAt());
+                user.setUpdatedAt(um.getUpdatedAt());
+                return user;
+            }
+        } catch (Exception e) {
+            log.warn("MongoDB lookup failed for user {}, falling back to H2: {}", username, e.getMessage());
+        }
+
+        // Fallback to H2 - but this should be rare for active users
+        Optional<User> h2User = userRepository.findByUsername(username);
+        if (h2User.isPresent()) {
+            User user = h2User.get();
+            log.warn("Using H2 user for {} (ID: {}) - should migrate to MongoDB", username, user.getId());
+
+            // Try to migrate to MongoDB on the fly
+            try {
+                Optional<UserMongo> existingMongo = userMongoRepository.findByUsername(username);
+                if (!existingMongo.isPresent()) {
+                    UserMongo migrated = new UserMongo();
+                    migrated.setId(user.getId()); // Keep H2 ID for compatibility
+                    migrated.setUsername(user.getUsername());
+                    migrated.setEmail(user.getEmail());
+                    migrated.setUniqueUserId(user.getUniqueUserId());
+                    migrated.setPassword(user.getPassword());
+                    migrated.setFullName(user.getFullName());
+                    migrated.setIsActive(user.getIsActive());
+                    migrated.setEmailVerified(user.getEmailVerified());
+                    migrated.setRole(user.getRole());
+                    migrated.setCreatedAt(user.getCreatedAt());
+                    migrated.setUpdatedAt(user.getUpdatedAt());
+                    userMongoRepository.save(migrated);
+                    log.info("Migrated H2 user {} to MongoDB", username);
+                }
+            } catch (Exception e) {
+                log.error("Failed to migrate user {} to MongoDB: {}", username, e.getMessage());
+            }
+
+            return user;
+        }
+
+        throw new RuntimeException("Authenticated user not found: " + username);
+    }
+
+    /**
+     * Get authentication status summary for all users
+     */
+    public void logUserAuthenticationStatus() {
+        try {
+            // Count H2 users
+            long totalH2Users = userRepository.count();
+            long activeH2Users = userRepository.findAll().stream()
+                    .filter(u -> Boolean.TRUE.equals(u.getIsActive()) && Boolean.TRUE.equals(u.getEmailVerified()))
+                    .count();
+            long inactiveH2Users = totalH2Users - activeH2Users;
+
+            // Count MongoDB users
+            long totalMongoUsers = userMongoRepository.count();
+            long activeMongoUsers = userMongoRepository.findAll().stream()
+                    .filter(u -> Boolean.TRUE.equals(u.getIsActive()) && Boolean.TRUE.equals(u.getEmailVerified()))
+                    .count();
+            long inactiveMongoUsers = totalMongoUsers - activeMongoUsers;
+
+            log.info("=== USER AUTHENTICATION STATUS ===");
+            log.info("H2 Database:");
+            log.info("  Total users: {}", totalH2Users);
+            log.info("  Authenticated (active + verified): {}", activeH2Users);
+            log.info("  Not authenticated: {}", inactiveH2Users);
+
+            log.info("MongoDB Database:");
+            log.info("  Total users: {}", totalMongoUsers);
+            log.info("  Authenticated (active + verified): {}", activeMongoUsers);
+            log.info("  Not authenticated: {}", inactiveMongoUsers);
+
+            // Check uniqueUserId status
+            long h2UsersWithUniqueId = userRepository.findAll().stream()
+                    .filter(u -> u.getUniqueUserId() != null && !u.getUniqueUserId().trim().isEmpty())
+                    .count();
+            long mongoUsersWithUniqueId = userMongoRepository.findAll().stream()
+                    .filter(u -> u.getUniqueUserId() != null && !u.getUniqueUserId().trim().isEmpty())
+                    .count();
+
+            log.info("Combined Totals:");
+            log.info("  Total users: {}", totalH2Users + totalMongoUsers);
+            log.info("  Authenticated: {}", activeH2Users + activeMongoUsers);
+            log.info("  Not authenticated: {}", inactiveH2Users + inactiveMongoUsers);
+            log.info("Unique User ID Status:");
+            log.info("  H2 users with uniqueUserId: {} / {}", h2UsersWithUniqueId, totalH2Users);
+            log.info("  MongoDB users with uniqueUserId: {} / {}", mongoUsersWithUniqueId, totalMongoUsers);
+            log.info("  Total users with uniqueUserId: {} / {}", h2UsersWithUniqueId + mongoUsersWithUniqueId, totalH2Users + totalMongoUsers);
+
+            // Check prediction userIds
+            try {
+                long totalPredictions = 0;
+                java.util.Set<Long> uniquePredictionUserIds = new java.util.HashSet<>();
+                java.util.Map<Long, Integer> predictionCountByUser = new java.util.HashMap<>();
+
+                // Get all predictions from MongoDB
+                java.util.List<com.ipl.model.mongo.UserPrediction> allPredictions =
+                    userPredictionRepository.findAll();
+
+                for (com.ipl.model.mongo.UserPrediction prediction : allPredictions) {
+                    totalPredictions++;
+                    uniquePredictionUserIds.add(prediction.getUserId());
+                    predictionCountByUser.put(prediction.getUserId(),
+                        predictionCountByUser.getOrDefault(prediction.getUserId(), 0) + 1);
+                }
+
+                log.info("Prediction Analysis:");
+                log.info("  Total predictions: {}", totalPredictions);
+                log.info("  Unique userIds in predictions: {}", uniquePredictionUserIds.size());
+                log.info("  UserIds with predictions: {}", uniquePredictionUserIds);
+
+                for (java.util.Map.Entry<Long, Integer> entry : predictionCountByUser.entrySet()) {
+                    log.info("  UserId {}: {} predictions", entry.getKey(), entry.getValue());
+                }
+
+                // Check if prediction userIds correspond to actual users
+                log.info("UserId Validation:");
+                java.util.Set<Long> allValidUserIds = new java.util.HashSet<>();
+                java.util.Map<Long, String> userIdToUsername = new java.util.HashMap<>();
+                java.util.Map<String, java.util.List<Long>> usernameToUserIds = new java.util.HashMap<>();
+
+                // Get all H2 users
+                java.util.List<User> h2Users = userRepository.findAll();
+                for (User user : h2Users) {
+                    allValidUserIds.add(user.getId());
+                    userIdToUsername.put(user.getId(), user.getUsername());
+                    usernameToUserIds.computeIfAbsent(user.getUsername(), k -> new java.util.ArrayList<>()).add(user.getId());
+                }
+
+                // Get all MongoDB users
+                java.util.List<UserMongo> mongoUsers = userMongoRepository.findAll();
+                for (UserMongo user : mongoUsers) {
+                    allValidUserIds.add(user.getId());
+                    userIdToUsername.put(user.getId(), user.getUsername());
+                    usernameToUserIds.computeIfAbsent(user.getUsername(), k -> new java.util.ArrayList<>()).add(user.getId());
+                }
+
+                log.info("  Total valid userIds in system: {}", allValidUserIds.size());
+                log.info("  Valid userIds: {}", allValidUserIds);
+
+                // Check for duplicate usernames
+                log.info("Username Duplication Analysis:");
+                boolean hasDuplicateUsernames = false;
+                for (java.util.Map.Entry<String, java.util.List<Long>> entry : usernameToUserIds.entrySet()) {
+                    String username = entry.getKey();
+                    java.util.List<Long> userIds = entry.getValue();
+                    if (userIds.size() > 1) {
+                        hasDuplicateUsernames = true;
+                        log.error("  ❌ CRITICAL: Username '{}' used by multiple userIds: {}", username, userIds);
+                    }
+                }
+
+                if (!hasDuplicateUsernames) {
+                    log.info("  ✅ No duplicate usernames found");
+                }
+
+                // Check prediction username consistency
+                log.info("Prediction Username Consistency:");
+                for (com.ipl.model.mongo.UserPrediction prediction : allPredictions) {
+                    Long predUserId = prediction.getUserId();
+                    String predUsername = prediction.getUsername();
+                    String expectedUsername = userIdToUsername.get(predUserId);
+
+                    if (expectedUsername != null && !expectedUsername.equals(predUsername)) {
+                        log.error("  ❌ CRITICAL: Prediction userId={} has username='{}' but user has username='{}'",
+                            predUserId, predUsername, expectedUsername);
+                    }
+                }
+
+                // Find invalid prediction userIds
+                java.util.Set<Long> invalidPredictionUserIds = new java.util.HashSet<>();
+                for (Long predUserId : uniquePredictionUserIds) {
+                    if (!allValidUserIds.contains(predUserId)) {
+                        invalidPredictionUserIds.add(predUserId);
+                    }
+                }
+
+                if (!invalidPredictionUserIds.isEmpty()) {
+                    log.error("  ❌ CRITICAL: Found predictions with INVALID userIds: {}", invalidPredictionUserIds);
+                    log.error("  This indicates predictions are being created with wrong userIds!");
+                } else {
+                    log.info("  ✅ All prediction userIds are valid");
+                }
+
+            } catch (Exception e) {
+                log.error("Error analyzing predictions: {}", e.getMessage());
+            }
+
+            // Fix user ID inconsistencies
+            consolidateUserIdentities();
+        } catch (Exception e) {
+            log.error("Error checking user authentication status: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Fix prediction usernames to match their actual user accounts
+     */
+    public void fixPredictionUsernames() {
+        try {
+            log.info("=== FIXING PREDICTION USERNAMES ===");
+
+            java.util.List<com.ipl.model.mongo.UserPrediction> allPredictions =
+                userPredictionRepository.findAll();
+
+            java.util.Map<Long, String> userIdToUsername = new java.util.HashMap<>();
+
+            // Build userId to username mapping from all users
+            java.util.List<User> h2Users = userRepository.findAll();
+            for (User user : h2Users) {
+                userIdToUsername.put(user.getId(), user.getUsername());
+            }
+
+            java.util.List<UserMongo> mongoUsers = userMongoRepository.findAll();
+            for (UserMongo user : mongoUsers) {
+                userIdToUsername.put(user.getId(), user.getUsername());
+            }
+
+            int fixedCount = 0;
+            for (com.ipl.model.mongo.UserPrediction prediction : allPredictions) {
+                Long userId = prediction.getUserId();
+                String currentUsername = prediction.getUsername();
+                String correctUsername = userIdToUsername.get(userId);
+
+                if (correctUsername != null && !correctUsername.equals(currentUsername)) {
+                    log.info("Fixing prediction {}: userId={} username '{}' -> '{}'",
+                        prediction.getId(), userId, currentUsername, correctUsername);
+                    prediction.setUsername(correctUsername);
+                    userPredictionRepository.save(prediction);
+                    fixedCount++;
+                }
+            }
+
+            log.info("Fixed {} predictions with incorrect usernames", fixedCount);
+
+        } catch (Exception e) {
+            log.error("Error fixing prediction usernames: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Consolidate user identities and fix prediction userIds
+     */
+    public void consolidateUserIdentities() {
+        try {
+            log.info("=== CONSOLIDATING USER IDENTITIES ===");
+
+            // Step 1: Build user ID mapping (H2 ID -> MongoDB ID)
+            java.util.Map<Long, Long> userIdMapping = new java.util.HashMap<>();
+
+            // Get all H2 users and map them to their MongoDB equivalents
+            java.util.List<User> h2Users = userRepository.findAll();
+            for (User h2User : h2Users) {
+                try {
+                    // Try to find MongoDB equivalent by username
+                    Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(h2User.getUsername());
+                    if (mongoUser.isPresent()) {
+                        userIdMapping.put(h2User.getId(), mongoUser.get().getId());
+                        log.info("Mapped H2 user {} (ID: {}) -> MongoDB user {} (ID: {})",
+                            h2User.getUsername(), h2User.getId(), mongoUser.get().getUsername(), mongoUser.get().getId());
+                    } else {
+                        // If no MongoDB equivalent, keep H2 ID but log it
+                        log.warn("No MongoDB equivalent found for H2 user: {} (ID: {})", h2User.getUsername(), h2User.getId());
+                    }
+                } catch (Exception e) {
+                    log.error("Error mapping user {}: {}", h2User.getUsername(), e.getMessage());
+                }
+            }
+
+            // Step 2: Update all predictions to use correct userIds
+            java.util.List<com.ipl.model.mongo.UserPrediction> allPredictions =
+                userPredictionRepository.findAll();
+
+            int updatedCount = 0;
+            for (com.ipl.model.mongo.UserPrediction prediction : allPredictions) {
+                Long currentUserId = prediction.getUserId();
+                Long correctUserId = userIdMapping.get(currentUserId);
+
+                if (correctUserId != null && !correctUserId.equals(currentUserId)) {
+                    log.info("Updating prediction {}: userId {} -> {}", prediction.getId(), currentUserId, correctUserId);
+                    prediction.setUserId(correctUserId);
+                    userPredictionRepository.save(prediction);
+                    updatedCount++;
+                }
+            }
+
+            // Step 3: Remove duplicate predictions (same user + match)
+            removeDuplicatePredictions();
+
+            log.info("User identity consolidation completed:");
+            log.info("  - {} predictions updated with correct userIds", updatedCount);
+            log.info("  - Duplicate predictions removed");
+
+        } catch (Exception e) {
+            log.error("Error consolidating user identities: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Remove duplicate predictions for same user + match combination
+     */
+    private void removeDuplicatePredictions() {
+        try {
+            java.util.List<com.ipl.model.mongo.UserPrediction> allPredictions =
+                userPredictionRepository.findAll();
+
+            // Group by userId + matchId
+            java.util.Map<String, java.util.List<com.ipl.model.mongo.UserPrediction>> groupedPredictions =
+                new java.util.HashMap<>();
+
+            for (com.ipl.model.mongo.UserPrediction pred : allPredictions) {
+                String key = pred.getUserId() + "_" + pred.getMatchId();
+                groupedPredictions.computeIfAbsent(key, k -> new java.util.ArrayList<>()).add(pred);
+            }
+
+            int duplicatesRemoved = 0;
+            for (java.util.Map.Entry<String, java.util.List<com.ipl.model.mongo.UserPrediction>> entry : groupedPredictions.entrySet()) {
+                java.util.List<com.ipl.model.mongo.UserPrediction> predictions = entry.getValue();
+                if (predictions.size() > 1) {
+                    // Keep the most recent prediction, remove others
+                    predictions.sort((a, b) -> Long.compare(b.getCreatedAt(), a.getCreatedAt()));
+                    for (int i = 1; i < predictions.size(); i++) {
+                        log.info("Removing duplicate prediction: userId={}, matchId={}, createdAt={}",
+                            predictions.get(i).getUserId(), predictions.get(i).getMatchId(), predictions.get(i).getCreatedAt());
+                        userPredictionRepository.delete(predictions.get(i));
+                        duplicatesRemoved++;
+                    }
+                }
+            }
+
+            log.info("Removed {} duplicate predictions", duplicatesRemoved);
+
+        } catch (Exception e) {
+            log.error("Error removing duplicate predictions: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Get the correct userId for a given username (prioritizes MongoDB)
+     */
+    public Long getCanonicalUserId(String username) {
+        try {
+            // First try MongoDB
+            Optional<UserMongo> mongoUser = userMongoRepository.findByUsername(username);
+            if (mongoUser.isPresent()) {
+                return mongoUser.get().getId();
+            }
+
+            // Fallback to H2, but convert to MongoDB ID if possible
+            Optional<User> h2User = userRepository.findByUsername(username);
+            if (h2User.isPresent()) {
+                User user = h2User.get();
+                // Check if we have a MongoDB equivalent
+                Optional<UserMongo> mongoEquivalent = userMongoRepository.findByUsername(username);
+                if (mongoEquivalent.isPresent()) {
+                    return mongoEquivalent.get().getId();
+                }
+                // If no MongoDB equivalent, return H2 ID (but this shouldn't happen for active users)
+                return user.getId();
+            }
+        } catch (Exception e) {
+            log.error("Error getting canonical userId for {}: {}", username, e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Validate that a userId exists in our user databases
+     */
+    public boolean isValidUserId(Long userId) {
+        if (userId == null) return false;
+
+        // Check MongoDB first (canonical source)
+        try {
+            if (userMongoRepository.existsById(userId)) {
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("MongoDB userId validation failed for {}: {}", userId, e.getMessage());
+        }
+
+        // Check H2 as fallback
+        try {
+            if (userRepository.existsById(userId)) {
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("H2 userId validation failed for {}: {}", userId, e.getMessage());
+        }
+
+        return false;
+    }
+
+    /**
+     * Validate and clean up orphaned predictions (predictions with invalid userIds)
+     */
+    public void cleanupOrphanedPredictions() {
+        try {
+            log.info("=== CLEANING UP ORPHANED PREDICTIONS ===");
+
+            java.util.List<com.ipl.model.mongo.UserPrediction> allPredictions =
+                userPredictionRepository.findAll();
+
+            int orphanedCount = 0;
+            java.util.List<String> orphanedIds = new java.util.ArrayList<>();
+
+            for (com.ipl.model.mongo.UserPrediction prediction : allPredictions) {
+                if (!isValidUserId(prediction.getUserId())) {
+                    log.warn("Found orphaned prediction: userId={}, matchId={}, username={}",
+                        prediction.getUserId(), prediction.getMatchId(), prediction.getUsername());
+                    orphanedIds.add(prediction.getId());
+                    orphanedCount++;
+                }
+            }
+
+            // Remove orphaned predictions
+            for (String predictionId : orphanedIds) {
+                try {
+                    userPredictionRepository.deleteById(predictionId);
+                    log.info("Removed orphaned prediction: {}", predictionId);
+                } catch (Exception e) {
+                    log.error("Failed to remove orphaned prediction {}: {}", predictionId, e.getMessage());
+                }
+            }
+
+            log.info("Cleanup completed: {} orphaned predictions removed", orphanedCount);
+
+        } catch (Exception e) {
+            log.error("Error cleaning up orphaned predictions: {}", e.getMessage());
+        }
     }
 }
