@@ -108,6 +108,20 @@ class ApiService {
     });
   }
 
+  async changePassword(email: string, currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, currentPassword, newPassword }),
+    });
+  }
+
+  async resetPassword(email: string, newPassword: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/api/auth/admin/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, newPassword }),
+    });
+  }
+
   // Match endpoints
   async getAllMatches(): Promise<Match[]> {
     return this.request<Match[]>('/api/matches');

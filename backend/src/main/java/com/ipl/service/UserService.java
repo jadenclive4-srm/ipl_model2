@@ -1063,6 +1063,47 @@ public class UserService implements UserDetailsService {
     }
 
     /**
+     * Reset password for a user by email (without requiring current password)
+     * Admin only functionality
+     */
+    public void resetPassword(String email, String newPassword) {
+        // Find user directly in MongoDB
+        UserMongo userMongo = userMongoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+
+        // Update password without verifying current password
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        userMongo.setPassword(encodedPassword);
+        userMongo.setUpdatedAt(System.currentTimeMillis());
+        userMongoRepository.save(userMongo);
+
+        log.info("Password reset successfully for user: {} (MongoDB only)", userMongo.getUsername());
+    }
+
+    /**
+     * Change password for a user by email
+     */
+    @Transactional
+    public void changePassword(String email, String currentPassword, String newPassword) {
+        // Find user directly in MongoDB
+        UserMongo userMongo = userMongoRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+
+        // Verify current password
+        if (!passwordEncoder.matches(currentPassword, userMongo.getPassword())) {
+            throw new RuntimeException("Current password is incorrect");
+        }
+
+        // Update password only in MongoDB
+        String encodedPassword = passwordEncoder.encode(newPassword);
+        userMongo.setPassword(encodedPassword);
+        userMongo.setUpdatedAt(System.currentTimeMillis());
+        userMongoRepository.save(userMongo);
+
+        log.info("Password changed successfully for user: {} (MongoDB only)", userMongo.getUsername());
+    }
+
+    /**
      * Validate and clean up orphaned predictions (predictions with invalid userIds)
      */
     public void cleanupOrphanedPredictions() {

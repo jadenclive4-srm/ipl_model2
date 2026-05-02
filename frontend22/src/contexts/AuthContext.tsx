@@ -12,6 +12,7 @@ interface AuthContextType {
   register: (userData: AuthRequest) => Promise<RegisterResponse>;
   verifyOtpAndLogin: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
+  changePassword: (email: string, currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => void;
   setSession: (auth: AuthResponse) => void;
   isAuthenticated: boolean;
@@ -144,26 +145,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-   const resendOtp = async (email: string) => {
-     try {
-       await apiService.resendOtp(email);
-     } catch (error) {
-       throw error;
-     }
-   };
+    const resendOtp = async (email: string) => {
+      try {
+        await apiService.resendOtp(email);
+      } catch (error) {
+        throw error;
+      }
+    };
 
-   const value: AuthContextType = {
-     user,
-     token,
-     isLoading,
-     login,
-     register,
-     verifyOtpAndLogin,
-     resendOtp,
-     logout,
-     setSession,
-     isAuthenticated: !!user && !!token,
-   };
+    const changePassword = async (email: string, currentPassword: string, newPassword: string) => {
+      try {
+        await apiService.changePassword(email, currentPassword, newPassword);
+      } catch (error) {
+        throw error;
+      }
+    };
+
+    const value: AuthContextType = {
+      user,
+      token,
+      isLoading,
+      login,
+      register,
+      verifyOtpAndLogin,
+      resendOtp,
+      changePassword,
+      logout,
+      setSession,
+      isAuthenticated: !!user && !!token,
+    };
 
   return (
     <AuthContext.Provider value={value}>

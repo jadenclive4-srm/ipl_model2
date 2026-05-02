@@ -122,10 +122,55 @@ public class AuthController {
         }
     }
     
+    @PostMapping("/change-password")
+    public ResponseEntity<Map<String, String>> changePassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String currentPassword = request.get("currentPassword");
+        String newPassword = request.get("newPassword");
+
+        if (email == null || currentPassword == null || newPassword == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            userService.changePassword(email, currentPassword, newPassword);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Password changed successfully");
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", e.getMessage());
+            return ResponseEntity.badRequest().body(error);
+        }
+    }
+
+    @PostMapping("/admin/reset-password")
+    public ResponseEntity<Map<String, String>> resetPassword(@RequestBody Map<String, String> request) {
+        String email = request.get("email");
+        String newPassword = request.get("newPassword");
+
+        if (email == null || newPassword == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        try {
+            userService.resetPassword(email, newPassword);
+            Map<String, String> response = new HashMap<>();
+            response.put("message", "Password reset successfully");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            System.err.println("PASSWORD RESET ERROR: " + e.getClass().getName() + " - " + e.getMessage());
+            e.printStackTrace();
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Internal server error occurred while resetting password");
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
     @GetMapping("/validate")
     public ResponseEntity<Map<String, Boolean>> validateToken(@RequestHeader("Authorization") String authHeader) {
         Map<String, Boolean> response = new HashMap<>();
-        
+
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
             String username = jwtUtil.extractUsername(token);
@@ -134,7 +179,7 @@ public class AuthController {
         } else {
             response.put("valid", false);
         }
-        
+
         return ResponseEntity.ok(response);
     }
 }

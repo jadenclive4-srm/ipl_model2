@@ -29,6 +29,13 @@ const Admin: React.FC = () => {
     fullName: '',
     role: 'USER'
   });
+
+  // Password reset state
+  const [resetPasswordData, setResetPasswordData] = useState({
+    email: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   
   const getDefaultQuestionsForMatch = (match: Match): Question[] => {
     return [
@@ -471,6 +478,36 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!resetPasswordData.email || !resetPasswordData.newPassword) {
+      setError('Email and new password are required');
+      return;
+    }
+
+    if (resetPasswordData.newPassword !== resetPasswordData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      const result = await apiService.resetPassword(resetPasswordData.email, resetPasswordData.newPassword);
+      setImportStatus(result.message);
+      setResetPasswordData({
+        email: '',
+        newPassword: '',
+        confirmPassword: ''
+      });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to reset password');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
@@ -885,6 +922,78 @@ const Admin: React.FC = () => {
                 >
                   {loading ? 'Creating...' : 'Create User'}
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Password Reset Section */}
+        <div className="bg-white shadow rounded-lg mb-6">
+          <div className="px-4 py-5 sm:p-6">
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+              Password Reset (Admin Only)
+            </h3>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div>
+                  <label htmlFor="resetEmail" className="block text-sm font-medium text-gray-700">
+                    User Email *
+                  </label>
+                  <input
+                    type="email"
+                    id="resetEmail"
+                    value={resetPasswordData.email}
+                    onChange={(e) => setResetPasswordData(prev => ({ ...prev, email: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Enter user email"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="resetPassword" className="block text-sm font-medium text-gray-700">
+                    New Password *
+                  </label>
+                  <input
+                    type="password"
+                    id="resetPassword"
+                    value={resetPasswordData.newPassword}
+                    onChange={(e) => setResetPasswordData(prev => ({ ...prev, newPassword: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Enter new password"
+                    disabled={loading}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="confirmResetPassword" className="block text-sm font-medium text-gray-700">
+                    Confirm Password *
+                  </label>
+                  <input
+                    type="password"
+                    id="confirmResetPassword"
+                    value={resetPasswordData.confirmPassword}
+                    onChange={(e) => setResetPasswordData(prev => ({ ...prev, confirmPassword: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    placeholder="Confirm new password"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={handleResetPassword}
+                  disabled={loading || !resetPasswordData.email || !resetPasswordData.newPassword || !resetPasswordData.confirmPassword}
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
+                >
+                  {loading ? 'Resetting...' : 'Reset Password'}
+                </button>
+              </div>
+
+              <div className="mt-2 text-sm text-gray-600">
+                <p>⚠️ <strong>Admin Only:</strong> This resets the user's password without requiring their current password. Use with caution.</p>
               </div>
             </div>
           </div>
