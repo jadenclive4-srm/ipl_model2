@@ -174,9 +174,9 @@ public class PredictionController {
             return ResponseEntity.badRequest().body(error);
         }
 
-        System.out.println("Quiz DTO received: userId=" + authenticatedUser.getId() + ", matchId=" + quizDTO.getMatchId() + ", answers=" + quizDTO.getAnswers());
+        System.out.println("Quiz DTO received: userId=" + authenticatedUser.getId() + ", username=" + authenticatedUser.getUsername() + ", matchId=" + quizDTO.getMatchId() + ", answers=" + quizDTO.getAnswers());
         predictionService.saveQuizPrediction(
-                authenticatedUser.getId(),
+                authenticatedUser.getUsername(),
                 quizDTO.getMatchId(),
                 quizDTO.getAnswers()
         );
@@ -278,6 +278,14 @@ public class PredictionController {
     @PostMapping("/fix-userids")
     public ResponseEntity<Map<String, Integer>> fixUserIdsInPredictions() {
         int fixedCount = predictionService.fixUserIdsInPredictions();
+        Map<String, Integer> response = new HashMap<>();
+        response.put("fixed", fixedCount);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/fix-quiz-userids")
+    public ResponseEntity<Map<String, Integer>> fixUserIdsInQuizResponses() {
+        int fixedCount = predictionService.fixUserIdsInQuizResponses();
         Map<String, Integer> response = new HashMap<>();
         response.put("fixed", fixedCount);
         return ResponseEntity.ok(response);

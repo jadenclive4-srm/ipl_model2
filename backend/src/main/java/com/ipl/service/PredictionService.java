@@ -395,32 +395,37 @@ public class PredictionService {
         System.out.println("Fixed userIds for " + fixedCount + " predictions");
         return fixedCount;
     }
-    
-    @Transactional
-    public void saveQuizPrediction(Long userId, Long matchId, java.util.Map<String, String> answers) {
-        try {
-            System.out.println("saveQuizPrediction called with: userId=" + userId + ", matchId=" + matchId + ", answers=" + answers);
 
-            // Try to find user in H2 first, then MongoDB
-            String username;
+    public int fixUserIdsInQuizResponses() {
+        List<UserResponse> allResponses = userResponseRepository.findAll();
+        int fixedCount = 0;
+        for (UserResponse response : allResponses) {
             try {
-                User user = userService.findById(userId)
-                        .orElseThrow(() -> new RuntimeException("User not found"));
-                username = user.getUsername();
-            } catch (Exception e) {
-                // If H2 user not found, check MongoDB directly
-                try {
-                    Optional<UserMongo> mongoUser = userMongoRepository.findById(userId);
-                    if (mongoUser.isPresent()) {
-                        username = mongoUser.get().getUsername();
-                    } else {
-                        throw new RuntimeException("User not found in both H2 and MongoDB");
-                    }
-                } catch (Exception mongoEx) {
-                    System.err.println("Error checking MongoDB for user: " + mongoEx.getMessage());
-                    throw new RuntimeException("User not found: " + e.getMessage());
+                User user = userService.findByUsername(response.getUsername()).orElse(null);
+                if (user != null && !user.getId().equals(response.getUserId())) {
+                    System.out.println("Fixing userId for quiz response: username=" + response.getUsername() +
+                        ", old userId=" + response.getUserId() + ", new userId=" + user.getId());
+                    response.setUserId(user.getId());
+                    userResponseRepository.save(response);
+                    fixedCount++;
                 }
+            } catch (Exception e) {
+                System.err.println("Error fixing userId for quiz response with username " + response.getUsername() + ": " + e.getMessage());
             }
+        }
+        System.out.println("Fixed userIds for " + fixedCount + " quiz responses");
+        return fixedCount;
+    }
+
+    @Transactional
+    public void saveQuizPrediction(String username, Long matchId, java.util.Map<String, String> answers) {
+        try {
+            System.out.println("saveQuizPrediction called with: username=" + username + ", matchId=" + matchId + ", answers=" + answers);
+
+            // Find user by username to get the correct userId
+            User user = userService.findByUsername(username)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+            Long userId = user.getId();
 
             // Check if already submitted
             if (userResponseRepository.existsByUserIdAndMatchId(userId, matchId)) {
