@@ -311,31 +311,40 @@ public class UserService implements UserDetailsService {
             return h2User;
         }
         
-         // Check MongoDB and sync to H2
-         try {
-             Optional<UserMongo> mongoUser = userMongoRepository.findById(id);
-             if (mongoUser.isPresent()) {
-                 UserMongo um = mongoUser.get();
-                 User user = new User();
-                 user.setId(um.getId());
-                 user.setUsername(um.getUsername());
-                 user.setEmail(um.getEmail());
-                 user.setUniqueUserId(um.getUniqueUserId());
-                 user.setPassword(um.getPassword());
-                 user.setFullName(um.getFullName());
-                 user.setRole(um.getRole());
-                 user.setIsActive(um.getIsActive());
-                 user.setEmailVerified(um.getEmailVerified());
-                 user.setCreatedAt(um.getCreatedAt());
-                 user.setUpdatedAt(um.getUpdatedAt());
-                 
-                 // Save to H2 so foreign key constraints work
-                 User savedUser = userRepository.save(user);
-                 return Optional.of(savedUser);
-             }
-          } catch (Exception e) {
-              log.error("Error checking MongoDB for user id: {}", e.getMessage());
-          }
+          // Check MongoDB and sync to H2
+          try {
+              Optional<UserMongo> mongoUser = userMongoRepository.findById(id);
+              if (mongoUser.isPresent()) {
+                  UserMongo um = mongoUser.get();
+
+                  // Check if H2 already has a user with this username (data inconsistency)
+                  Optional<User> existingH2User = userRepository.findByUsername(um.getUsername());
+                  if (existingH2User.isPresent()) {
+                      log.warn("Found H2 user with same username '{}' as MongoDB user ID {}. Using existing H2 user ID {} instead of syncing.",
+                          um.getUsername(), um.getId(), existingH2User.get().getId());
+                      return existingH2User;
+                  }
+
+                  User user = new User();
+                  user.setId(um.getId());
+                  user.setUsername(um.getUsername());
+                  user.setEmail(um.getEmail());
+                  user.setUniqueUserId(um.getUniqueUserId());
+                  user.setPassword(um.getPassword());
+                  user.setFullName(um.getFullName());
+                  user.setRole(um.getRole());
+                  user.setIsActive(um.getIsActive());
+                  user.setEmailVerified(um.getEmailVerified());
+                  user.setCreatedAt(um.getCreatedAt());
+                  user.setUpdatedAt(um.getUpdatedAt());
+
+                  // Save to H2 so foreign key constraints work
+                  User savedUser = userRepository.save(user);
+                  return Optional.of(savedUser);
+              }
+           } catch (Exception e) {
+               log.error("Error checking MongoDB for user id: {}", e.getMessage());
+           }
         
         return Optional.empty();
     }

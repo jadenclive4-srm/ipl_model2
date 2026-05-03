@@ -80,17 +80,23 @@ public class PredictionService {
         System.out.println("userId: " + userId);
         System.out.println("matchId: " + matchId);
         System.out.println("predictedWinnerId: " + predictedWinnerId);
+        System.out.println("homeProbability: " + homeProbability);
+        System.out.println("awayProbability: " + awayProbability);
         System.out.println("Current authenticated user: " + (userService.getCurrentAuthenticatedUser() != null ?
             userService.getCurrentAuthenticatedUser().getUsername() : "null"));
         System.out.println("===================================");
 
         // Check for existing prediction in MongoDB (primary storage)
-        if (userPredictionRepository.existsByUserIdAndMatchId(userId, matchId)) {
+        boolean mongoExists = userPredictionRepository.existsByUserIdAndMatchId(userId, matchId);
+        System.out.println("MongoDB prediction exists for user " + userId + " and match " + matchId + ": " + mongoExists);
+        if (mongoExists) {
             throw new RuntimeException("Prediction already exists for this match");
         }
 
         // Also check H2 for backward compatibility (though currently disabled)
-        if (predictionRepository.existsByUserIdAndMatchId(userId, matchId)) {
+        boolean h2Exists = predictionRepository.existsByUserIdAndMatchId(userId, matchId);
+        System.out.println("H2 prediction exists for user " + userId + " and match " + matchId + ": " + h2Exists);
+        if (h2Exists) {
             throw new RuntimeException("Prediction already exists for this match");
         }
         
@@ -98,13 +104,20 @@ public class PredictionService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new RuntimeException("Match not found"));
-        
+
+        System.out.println("Match details: id=" + match.getId() + ", status=" + match.getMatchStatus() +
+            ", matchDate=" + match.getMatchDate() + ", currentTime=" + System.currentTimeMillis());
+
         if ("COMPLETED".equals(match.getMatchStatus())) {
             throw new RuntimeException("Cannot make predictions for a completed match");
         }
-        
+
         long predictionCloseTime = match.getMatchDate() - (30 * 60 * 1000);
-        if (System.currentTimeMillis() >= predictionCloseTime) {
+        long currentTime = System.currentTimeMillis();
+        System.out.println("Prediction window check: matchDate=" + match.getMatchDate() +
+            ", predictionCloseTime=" + predictionCloseTime + ", currentTime=" + currentTime +
+            ", windowClosed=" + (currentTime >= predictionCloseTime));
+        if (currentTime >= predictionCloseTime) {
             throw new RuntimeException("Prediction window has closed for this match");
         }
         
@@ -112,6 +125,9 @@ public class PredictionService {
         if (predictedWinnerId != null) {
             predictedWinner = teamRepository.findById(predictedWinnerId)
                     .orElseThrow(() -> new RuntimeException("Team not found"));
+            System.out.println("Predicted winner team: " + predictedWinner.getTeamName());
+        } else {
+            System.out.println("No predicted winner specified (predictedWinnerId is null)");
         }
         
         Prediction prediction = new Prediction();
