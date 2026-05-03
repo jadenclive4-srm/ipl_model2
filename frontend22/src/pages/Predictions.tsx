@@ -2,19 +2,20 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { Match, Prediction } from '../types/api';
 import MatchCard from '../components/MatchCard';
 
+type FilterType = 'correct' | 'incorrect' | 'all';
+
 const Predictions: React.FC = () => {
-  const { user, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user } = useAuth();
   const [allMatches, setAllMatches] = useState<Match[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [userPoints, setUserPoints] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   const loadPredictions = useCallback(async () => {
     if (!user) return;
@@ -45,7 +46,17 @@ const Predictions: React.FC = () => {
 
   const correctPredictions = predictions.filter(p => p.isCorrect);
   const incorrectPredictions = predictions.filter(p => !p.isCorrect && p.predictedWinnerId !== null);
-  const pendingPredictions = predictions.filter(p => p.predictedWinnerId === null);
+
+  const getFilteredPredictions = () => {
+    switch (activeFilter) {
+      case 'correct':
+        return correctPredictions;
+      case 'incorrect':
+        return incorrectPredictions;
+      default:
+        return [...correctPredictions, ...incorrectPredictions];
+    }
+  };
 
   return (
     <div className="min-h-screen bg-spotify-dark">
@@ -76,19 +87,40 @@ const Predictions: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-3 mb-8">
-              <div className="bg-spotify-surface border border-spotify-surfaceLight hover:border-spotify-green/50 transition-colors rounded-lg p-4 sm:p-6">
-                <div className="text-2xl sm:text-3xl font-bold text-spotify-green">{correctPredictions.length}</div>
-                <div className="text-xs sm:text-sm text-spotify-textMuted">Correct Predictions</div>
-              </div>
-              <div className="bg-spotify-surface border border-spotify-surfaceLight hover:border-red-500/50 transition-colors rounded-lg p-4 sm:p-6">
-                <div className="text-2xl sm:text-3xl font-bold text-red-400">{incorrectPredictions.length}</div>
-                <div className="text-xs sm:text-sm text-spotify-textMuted">Incorrect Predictions</div>
-              </div>
-              <div className="bg-spotify-surface border border-spotify-surfaceLight hover:border-yellow-500/50 transition-colors rounded-lg p-4 sm:p-6">
-                <div className="text-2xl sm:text-3xl font-bold text-yellow-500">{pendingPredictions.length}</div>
-                <div className="text-xs sm:text-sm text-spotify-textMuted">Pending Results</div>
-              </div>
+            <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-2 sm:grid-cols-3 mb-6 sm:mb-8">
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'all' ? 'correct' : 'all')}
+                className={`border transition-all duration-200 rounded-lg p-3 sm:p-4 md:p-6 cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] ${
+                  activeFilter === 'all'
+                    ? 'bg-spotify-green/20 border-spotify-green shadow-lg shadow-spotify-green/20'
+                    : 'bg-spotify-surface border-spotify-surfaceLight hover:border-spotify-green/50 hover:shadow-md'
+                }`}
+              >
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-spotify-green">{predictions.length}</div>
+                <div className="text-xs sm:text-sm text-spotify-textMuted mt-1">All Predictions</div>
+              </button>
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'correct' ? 'all' : 'correct')}
+                className={`border transition-all duration-200 rounded-lg p-3 sm:p-4 md:p-6 cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] ${
+                  activeFilter === 'correct'
+                    ? 'bg-spotify-green/20 border-spotify-green shadow-lg shadow-spotify-green/20'
+                    : 'bg-spotify-surface border-spotify-surfaceLight hover:border-spotify-green/50 hover:shadow-md'
+                }`}
+              >
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-spotify-green">{correctPredictions.length}</div>
+                <div className="text-xs sm:text-sm text-spotify-textMuted mt-1">Correct Predictions</div>
+              </button>
+              <button
+                onClick={() => setActiveFilter(activeFilter === 'incorrect' ? 'all' : 'incorrect')}
+                className={`border transition-all duration-200 rounded-lg p-3 sm:p-4 md:p-6 cursor-pointer transform hover:scale-[1.02] active:scale-[0.98] ${
+                  activeFilter === 'incorrect'
+                    ? 'bg-red-400/20 border-red-400 shadow-lg shadow-red-400/20'
+                    : 'bg-spotify-surface border-spotify-surfaceLight hover:border-red-500/50 hover:shadow-md'
+                }`}
+              >
+                <div className="text-xl sm:text-2xl md:text-3xl font-bold text-red-400">{incorrectPredictions.length}</div>
+                <div className="text-xs sm:text-sm text-spotify-textMuted mt-1">Incorrect Predictions</div>
+              </button>
             </div>
 
             {predictions.length === 0 ? (
@@ -97,45 +129,22 @@ const Predictions: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-6 sm:space-y-8">
-                {correctPredictions.length > 0 && (
+                {getFilteredPredictions().length > 0 ? (
                   <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-spotify-green mb-3 sm:mb-4">Correct Predictions</h2>
                     <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                      {correctPredictions.map((prediction) => {
+                      {getFilteredPredictions().map((prediction) => {
                         const match = getMatchForPrediction(prediction.matchId);
                         return match ? (
-                          <MatchCard key={prediction.id} match={match} userPrediction={prediction} />
+                          <MatchCard key={prediction.id} match={match} userPrediction={prediction} hideStatus={true} />
                         ) : null;
                       })}
                     </div>
                   </div>
-                )}
-
-                {incorrectPredictions.length > 0 && (
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-red-400 mb-3 sm:mb-4">Incorrect Predictions</h2>
-                    <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                      {incorrectPredictions.map((prediction) => {
-                        const match = getMatchForPrediction(prediction.matchId);
-                        return match ? (
-                          <MatchCard key={prediction.id} match={match} userPrediction={prediction} />
-                        ) : null;
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {pendingPredictions.length > 0 && (
-                  <div>
-                    <h2 className="text-lg sm:text-xl font-bold text-yellow-500 mb-3 sm:mb-4">Pending Results</h2>
-                    <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                      {pendingPredictions.map((prediction) => {
-                        const match = getMatchForPrediction(prediction.matchId);
-                        return match ? (
-                          <MatchCard key={prediction.id} match={match} userPrediction={prediction} />
-                        ) : null;
-                      })}
-                    </div>
+                ) : (
+                  <div className="text-center py-8 sm:py-12 px-4">
+                    <p className="text-spotify-textSecondary text-base sm:text-lg">
+                      {activeFilter === 'correct' ? 'No correct predictions yet.' : activeFilter === 'incorrect' ? 'No incorrect predictions yet.' : 'No predictions yet. Go to Matches tab to make your first prediction!'}
+                    </p>
                   </div>
                 )}
               </div>

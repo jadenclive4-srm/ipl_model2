@@ -8,6 +8,7 @@ interface MatchCardProps {
   userPrediction?: Prediction;
   onPredictClick?: () => void;
   isLarge?: boolean;
+  hideStatus?: boolean;
 }
 
 const teamColors: Record<string, { bg: string; text: string; border: string }> = {
@@ -57,7 +58,7 @@ const TeamLogo: React.FC<{ name: string; shortName: string; size?: 'normal' | 'l
   );
 };
 
-const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictClick, isLarge }) => {
+const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictClick, isLarge, hideStatus }) => {
   const isCompleted = match.matchStatus === 'COMPLETED';
   const isLive = match.matchStatus === 'LIVE';
   const isUpcoming = match.matchStatus === 'UPCOMING' || match.matchStatus === 'SCHEDULED';
@@ -71,14 +72,16 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictC
     >
       {/* Yellow strip at top - expanded to include date/status */}
       <div className={`absolute top-0 left-0 right-0 bg-gradient-to-r from-yellow-400 via-yellow-500 to-yellow-400 rounded-t-2xl flex items-center justify-between px-4 ${isLarge ? 'h-16' : 'h-12'} z-10`}>
-        <span className={`px-3 py-1 text-sm font-bold rounded-full shadow-lg ${
-          isCompleted ? 'bg-green-600 text-white shadow-green-600/30' :
-          isLive ? 'bg-red-500 text-white animate-pulse shadow-red-500/30' :
-          'bg-green-500 text-white shadow-green-500/30'
-        }`}>
-          {match.matchStatus}
-        </span>
-        <span className={`text-base text-gray-800 font-medium ${isLarge ? 'text-lg' : ''}`}>
+        {!hideStatus && (
+          <span className={`px-3 py-1 text-sm font-bold rounded-full shadow-lg ${
+            isCompleted ? 'bg-green-600 text-white shadow-green-600/30' :
+            isLive ? 'bg-red-500 text-white animate-pulse shadow-red-500/30' :
+            'bg-green-500 text-white shadow-green-500/30'
+          }`}>
+            {match.matchStatus}
+          </span>
+        )}
+        <span className={`text-base text-gray-800 font-medium ${isLarge ? 'text-lg' : ''} ${!hideStatus ? '' : 'ml-auto'}`}>
           {new Date(match.matchDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
         </span>
       </div>
