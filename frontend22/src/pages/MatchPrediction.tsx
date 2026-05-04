@@ -70,20 +70,20 @@ const MatchPrediction: React.FC = () => {
         questionType: 'QUIZ', 
         createdAt: 0 
       },
-      { 
-        id: 4, 
-        matchId: match.id, 
-        questionText: 'What will be the run rate in the powerplay overs?', 
-        optionA: 'Under 6', 
-        optionB: '6-7', 
-        optionC: '7-8', 
-        optionD: '8+', 
-        correctOption: '', 
-        pointsValue: 10, 
-        isActive: true, 
-        questionType: 'QUIZ', 
-        createdAt: 0 
-      },
+       {
+         id: 4,
+         matchId: match.id,
+         questionText: 'Will at least one player score a century today?',
+         optionA: 'Yes',
+         optionB: 'No',
+         optionC: '',
+         optionD: '',
+         correctOption: '',
+         pointsValue: 10,
+         isActive: true,
+         questionType: 'QUIZ',
+         createdAt: 0
+       },
       { 
         id: 5, 
         matchId: match.id, 

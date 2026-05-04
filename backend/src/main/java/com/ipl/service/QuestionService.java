@@ -468,7 +468,7 @@ public class QuestionService {
         map.put(3L, q3);
         // Q4
         Map<String, String> q4 = new HashMap<>();
-        q4.put("A", "Under 6"); q4.put("B", "6-7"); q4.put("C", "7-8"); q4.put("D", "8+");
+        q4.put("A", "Yes"); q4.put("B", "No");
         map.put(4L, q4);
         // Q5
         Map<String, String> q5 = new HashMap<>();
