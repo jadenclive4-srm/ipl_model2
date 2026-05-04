@@ -290,6 +290,31 @@ public class PredictionController {
         response.put("fixed", fixedCount);
         return ResponseEntity.ok(response);
     }
+
+    @GetMapping("/vote-counts")
+    public ResponseEntity<Map<Long, Integer>> getVoteCounts() {
+        try {
+            Map<Long, Integer> counts = predictionService.getPredictionCountsByTeamForTodaysMatches();
+            System.out.println("Today's vote counts for matches: " + counts);
+            return ResponseEntity.ok(counts);
+        } catch (Exception e) {
+            System.err.println("Error getting today's vote counts: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/accuracy")
+    public ResponseEntity<Map<String, Long>> getPredictionAccuracy() {
+        try {
+            Map<String, Long> accuracy = predictionService.getOverallPredictionAccuracy();
+            return ResponseEntity.ok(accuracy);
+        } catch (Exception e) {
+            System.err.println("Error getting prediction accuracy: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
     
     private PredictionDTO convertToDTO(Prediction prediction) {
         PredictionDTO dto = new PredictionDTO();

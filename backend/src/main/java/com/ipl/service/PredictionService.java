@@ -23,7 +23,9 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -491,5 +493,48 @@ public class PredictionService {
             e.printStackTrace();
             throw new RuntimeException("Failed to save quiz prediction: " + e.getMessage(), e);
         }
+    }
+
+    public Map<Long, Integer> getPredictionCountsByTeamForTodaysMatches() {
+        // Get today's date in IST
+        java.time.ZoneId istZone = java.time.ZoneId.of("Asia/Kolkata");
+        java.time.LocalDate today = java.time.LocalDate.now(istZone);
+        long startOfDay = today.atStartOfDay(istZone).toInstant().toEpochMilli();
+        long endOfDay = today.atTime(java.time.LocalTime.MAX).atZone(istZone).toInstant().toEpochMilli();
+
+        // Get matches scheduled for today
+        List<Match> todaysMatches = matchRepository.findMatchesForToday(startOfDay, endOfDay);
+        List<Long> todaysMatchIds = todaysMatches.stream().map(Match::getId).collect(Collectors.toList());
+
+        if (todaysMatchIds.isEmpty()) {
+            System.out.println("No matches today");
+            return new HashMap<>();
+        }
+
+        // Get predictions for today's matches
+        List<UserPrediction> todaysPredictions = new ArrayList<>();
+        for (Long matchId : todaysMatchIds) {
+            todaysPredictions.addAll(userPredictionRepository.findByMatchId(matchId));
+        }
+
+        System.out.println("Today's matches: " + todaysMatchIds.size() + ", predictions: " + todaysPredictions.size());
+        Map<Long, Integer> counts = new HashMap<>();
+        for (UserPrediction pred : todaysPredictions) {
+            Long teamId = pred.getPredictedWinnerId();
+            if (teamId != null) {
+                counts.put(teamId, counts.getOrDefault(teamId, 0) + 1);
+            }
+        }
+        System.out.println("Today's vote counts for matches: " + counts);
+        return counts;
+    }
+
+    public Map<String, Long> getOverallPredictionAccuracy() {
+        List<UserPrediction> allPredictions = userPredictionRepository.findAll();
+        long correct = allPredictions.stream().filter(UserPrediction::getIsCorrect).count();
+        long total = allPredictions.size();
+
+        System.out.println("Overall prediction accuracy: correct=" + correct + ", total=" + total);
+        return Map.of("correct", correct, "total", total);
     }
 }

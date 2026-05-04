@@ -71,7 +71,7 @@ const Dashboard: React.FC = () => {
     { id: 'matches' as TabType, name: 'Matches', icon: '🏏', current: activeTab === 'matches' },
     { id: 'predictions' as TabType, name: 'Predictions', icon: '🎯', current: activeTab === 'predictions' },
     { id: 'leaderboard' as TabType, name: 'Leaderboard', icon: '🏆', current: activeTab === 'leaderboard' },
-    { id: 'ai' as TabType, name: 'AI Assistant', icon: '🤖', current: activeTab === 'ai' },
+    { id: 'ai' as TabType, name: 'Insights', icon: '📊', current: activeTab === 'ai' },
   ];
 
   return (

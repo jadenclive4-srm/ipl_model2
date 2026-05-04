@@ -413,6 +413,14 @@ class ApiService {
     return this.request<Prediction[]>(`/api/predictions/match/${matchId}/all`);
   }
 
+  async getVoteCounts(): Promise<Record<number, number>> {
+    return this.request<Record<number, number>>('/api/predictions/vote-counts');
+  }
+
+  async getPredictionAccuracy(): Promise<{ correct: number; total: number }> {
+    return this.request<{ correct: number; total: number }>('/api/predictions/accuracy');
+  }
+
   async getAllQuestionsForMatch(matchId: number): Promise<Question[]> {
     return this.request<Question[]>(`/api/questions/match/${matchId}/all`);
   }
