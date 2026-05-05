@@ -194,6 +194,18 @@ public class PredictionController {
         result.put("submitted", exists);
         return ResponseEntity.ok(result);
     }
+
+    @GetMapping("/quiz/responses")
+    public ResponseEntity<com.ipl.model.mongo.UserResponse> getUserQuizResponses(@RequestParam Long matchId) {
+        // Get the authenticated user
+        User authenticatedUser = userService.getCurrentAuthenticatedUser();
+        Optional<com.ipl.model.mongo.UserResponse> userResponse = userResponseRepository.findByUserIdAndMatchId(authenticatedUser.getId(), matchId);
+        if (userResponse.isPresent()) {
+            return ResponseEntity.ok(userResponse.get());
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
     
     @PostMapping("/delete/{matchId}")
     public ResponseEntity<Map<String, String>> deleteAllPredictions(@PathVariable Long matchId) {

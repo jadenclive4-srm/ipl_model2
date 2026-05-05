@@ -156,19 +156,37 @@ const MatchCard: React.FC<MatchCardProps> = ({ match, userPrediction, onPredictC
 
       {hasPrediction && (
         <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-black">Your prediction</span>
-            <span className="text-sm font-medium text-black">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold text-black">Your Prediction:</span>
+            <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
               {userPrediction.predictedWinnerId === match.homeTeamId
                 ? match.homeTeamShortName
                 : match.awayTeamShortName}
             </span>
           </div>
           {userPrediction.isCorrect === true && (
-            <div className="flex items-center justify-between mt-2">
-              <span className="text-sm font-bold text-spotify-green">✓ Correct</span>
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-bold text-spotify-green">✓ Correct!</span>
               {userPrediction.pointsEarned > 0 && (
                 <span className="text-sm font-bold text-spotify-green">+{userPrediction.pointsEarned} pts</span>
+              )}
+            </div>
+          )}
+          {userPrediction.isCorrect === false && userPrediction.pointsEarned === 0 && match.winnerTeamId && (
+            <div className="mt-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-bold text-red-600">✗ Incorrect</span>
+                <span className="text-sm font-bold text-red-600">0 pts</span>
+              </div>
+              {match.winnerTeamId && (
+                <div className="flex items-center justify-between mt-1">
+                  <span className="text-xs text-gray-600">Winner:</span>
+                  <span className="text-xs font-medium text-black">
+                    {match.winnerTeamId === match.homeTeamId
+                      ? match.homeTeamShortName
+                      : match.awayTeamShortName}
+                  </span>
+                </div>
               )}
             </div>
           )}

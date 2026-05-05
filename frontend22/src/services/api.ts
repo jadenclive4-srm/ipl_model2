@@ -8,6 +8,7 @@ import {
   Question,
   UserAnswer,
   HeadToHead,
+  UserResponse,
   AuthRequest,
   AuthResponse,
   RegisterResponse,
@@ -401,6 +402,10 @@ class ApiService {
 
   async getQuizStatus(userId: number, matchId: number): Promise<{ submitted: boolean }> {
     return this.request<{ submitted: boolean }>(`/api/predictions/quiz/status?userId=${userId}&matchId=${matchId}`);
+  }
+
+  async getUserQuizResponses(matchId: number): Promise<UserResponse> {
+    return this.request<UserResponse>(`/api/predictions/quiz/responses?matchId=${matchId}`);
   }
 
   async evaluatePredictions(matchId: number): Promise<{ message: string }> {

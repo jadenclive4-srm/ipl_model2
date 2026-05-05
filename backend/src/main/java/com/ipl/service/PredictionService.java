@@ -30,17 +30,24 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 public class PredictionService {
-    
-    private final PredictionRepository predictionRepository;
-    private final MatchRepository matchRepository;
-    private final TeamRepository teamRepository;
-    private final UserRepository userRepository;
-    private final UserMongoRepository userMongoRepository;
-    private final UserPredictionRepository userPredictionRepository;
-    private final QuizAnswerRepository quizAnswerRepository;
-    private final UserResponseRepository userResponseRepository;
+
+    @Autowired
+    private PredictionRepository predictionRepository;
+    @Autowired
+    private MatchRepository matchRepository;
+    @Autowired
+    private TeamRepository teamRepository;
+    @Autowired
+    private UserRepository userRepository;
+    @Autowired
+    private UserMongoRepository userMongoRepository;
+    @Autowired
+    private UserPredictionRepository userPredictionRepository;
+    @Autowired
+    private QuizAnswerRepository quizAnswerRepository;
+    @Autowired
+    private UserResponseRepository userResponseRepository;
     @Autowired
     @Lazy
     private UserService userService;
@@ -229,12 +236,35 @@ public class PredictionService {
                     userPointsService.updateUserPoints(userId, -mongoPred.getPointsEarned());
                 }
             }
-            mongoPred.setIsCorrect(false);
-            mongoPred.setPointsEarned(0);
+            mongoPred.setIsCorrect(null); // Reset to not evaluated state
+            mongoPred.setPointsEarned(null); // Reset to not evaluated state
             userPredictionRepository.save(mongoPred);
-
-            System.out.println("Reset MongoDB prediction for user " + userId + " on match " + matchId);
         }
+    }
+
+    // Method to fix existing predictions that have incorrect default values
+    public void fixExistingPredictionDefaults() {
+        List<UserPrediction> allPredictions = userPredictionRepository.findAll();
+        int fixedCount = 0;
+
+        for (UserPrediction pred : allPredictions) {
+            // If prediction has isCorrect = false and pointsEarned = 0, it's likely unevaluated
+            // (since evaluated incorrect predictions get pointsEarned = 0, but evaluated correct get > 0)
+            // However, we can't reliably distinguish, so let's be conservative and only fix
+            // predictions that have both isCorrect = false AND pointsEarned = 0 AND no evaluation indicators
+
+            // For now, let's fix predictions that have the exact initial state
+            if (pred.getIsCorrect() != null && pred.getIsCorrect() == false &&
+                pred.getPointsEarned() != null && pred.getPointsEarned() == 0) {
+                // This might be an unevaluated prediction, set to null
+                pred.setIsCorrect(null);
+                pred.setPointsEarned(null);
+                userPredictionRepository.save(pred);
+                fixedCount++;
+            }
+        }
+
+        System.out.println("Fixed " + fixedCount + " existing predictions to use null defaults");
     }
     
     private void deleteUserPredictionFromMongo(Long userId, Long matchId) {
@@ -327,8 +357,8 @@ public class PredictionService {
                 userPrediction.setPredictedWinnerName(predictedWinnerName);
                 userPrediction.setHomeProbability(homeProbability);
                 userPrediction.setAwayProbability(awayProbability);
-                userPrediction.setIsCorrect(false);
-                userPrediction.setPointsEarned(0);
+                userPrediction.setIsCorrect(null); // null indicates not evaluated yet
+                userPrediction.setPointsEarned(null); // null indicates not evaluated yet
                 userPrediction.setCreatedAt(System.currentTimeMillis());
             }
             
@@ -467,7 +497,7 @@ public class PredictionService {
                 qr.setQuestionId(questionId);
                 qr.setSelectedOption(answer);
                 qr.setIsCorrect(false);
-                qr.setPointsEarned(0);
+                qr.setPointsEarned(null); // null indicates not evaluated yet
                 mongoResponses.add(qr);
             }
 

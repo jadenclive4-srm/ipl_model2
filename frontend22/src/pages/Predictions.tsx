@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/api';
 import { Match, Prediction } from '../types/api';
 import MatchCard from '../components/MatchCard';
@@ -10,6 +11,7 @@ type FilterType = 'correct' | 'incorrect' | 'all';
 
 const Predictions: React.FC = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [allMatches, setAllMatches] = useState<Match[]>([]);
   const [predictions, setPredictions] = useState<Prediction[]>([]);
   const [userPoints, setUserPoints] = useState<number>(0);
@@ -48,14 +50,34 @@ const Predictions: React.FC = () => {
   const incorrectPredictions = predictions.filter(p => !p.isCorrect && p.predictedWinnerId !== null);
 
   const getFilteredPredictions = () => {
+    let filteredPredictions;
     switch (activeFilter) {
       case 'correct':
-        return correctPredictions;
+        filteredPredictions = correctPredictions;
+        break;
       case 'incorrect':
-        return incorrectPredictions;
+        filteredPredictions = incorrectPredictions;
+        break;
       default:
-        return [...correctPredictions, ...incorrectPredictions];
+        filteredPredictions = [...correctPredictions, ...incorrectPredictions];
+        break;
     }
+
+    // Sort by match date (latest first)
+    return filteredPredictions.sort((a, b) => {
+      const matchA = getMatchForPrediction(a.matchId);
+      const matchB = getMatchForPrediction(b.matchId);
+
+      if (!matchA && !matchB) return 0;
+      if (!matchA) return 1;
+      if (!matchB) return -1;
+
+      return matchB.matchDate - matchA.matchDate; // Descending order (latest first)
+    });
+  };
+
+  const handleMatchClick = (matchId: number) => {
+    navigate(`/predict/${matchId}`);
   };
 
   return (
@@ -130,16 +152,22 @@ const Predictions: React.FC = () => {
             ) : (
               <div className="space-y-6 sm:space-y-8">
                 {getFilteredPredictions().length > 0 ? (
-                  <div>
-                    <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-                      {getFilteredPredictions().map((prediction) => {
-                        const match = getMatchForPrediction(prediction.matchId);
-                        return match ? (
-                          <MatchCard key={prediction.id} match={match} userPrediction={prediction} hideStatus={true} />
-                        ) : null;
-                      })}
+                    <div>
+                      <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                        {getFilteredPredictions().map((prediction) => {
+                          const match = getMatchForPrediction(prediction.matchId);
+                          return match ? (
+                            <MatchCard
+                              key={prediction.id}
+                              match={match}
+                              userPrediction={prediction}
+                              hideStatus={true}
+                              onPredictClick={() => handleMatchClick(match.id)}
+                            />
+                          ) : null;
+                        })}
+                      </div>
                     </div>
-                  </div>
                 ) : (
                   <div className="text-center py-8 sm:py-12 px-4">
                     <p className="text-spotify-textSecondary text-base sm:text-lg">

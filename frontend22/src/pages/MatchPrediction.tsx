@@ -4,7 +4,55 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Match, Prediction, HeadToHead, VenueStats, Question } from '../types/api';
+import { Match, Prediction, HeadToHead, VenueStats, Question, UserResponse } from '../types/api';
+
+// Team logo component and supporting functions
+const teamColors: Record<string, { bg: string; text: string; border: string }> = {
+  'Mumbai Indians': { bg: '#004BA0', text: '#ffffff', border: '#D1AB0E' },
+  'Chennai Super Kings': { bg: '#F2C311', text: '#000000', border: '#17459E' },
+  'Royal Challengers Bangalore': { bg: '#ED1C24', text: '#ffffff', border: '#000000' },
+  'Kolkata Knight Riders': { bg: '#2E2E3A', text: '#B99C40', border: '#B99C40' },
+  'Delhi Capitals': { bg: '#0093D0', text: '#ffffff', border: '#F44336' },
+  'Sunrisers Hyderabad': { bg: '#FF110D', text: '#FF8F00', border: '#FF8F00' },
+  'Rajasthan Royals': { bg: '#DA291C', text: '#ffffff', border: '#EF3340' },
+  'Punjab Kings': { bg: '#ED1C24', text: '#ffffff', border: '#F2A902' },
+  'Lucknow Super Giants': { bg: '#004B8D', text: '#D1AB0E', border: '#D1AB0E' },
+  'Gujarat Titans': { bg: '#00203FFF', text: '#ADEFD1', border: '#ADEFD1' },
+};
+
+const getTeamColors = (teamName: string) => {
+  return teamColors[teamName] || { bg: '#282828', text: '#ffffff', border: '#1DB954' };
+};
+
+const TeamLogo: React.FC<{ name: string; shortName: string; size?: 'normal' | 'large'; logoUrl?: string }> = ({ name, shortName, size = 'normal', logoUrl }) => {
+  const colors = getTeamColors(name);
+  const sizeClasses = size === 'large' ? 'w-16 h-16' : 'w-12 h-12';
+  const [imgError, setImgError] = React.useState(false);
+
+  if (logoUrl && !imgError) {
+    return (
+      <img
+        src={logoUrl}
+        alt={shortName}
+        className={`${sizeClasses} object-contain`}
+        onError={() => setImgError(true)}
+      />
+    );
+  }
+
+  return (
+    <div
+      className={`${sizeClasses} rounded-full flex items-center justify-center font-bold shadow-lg`}
+      style={{
+        backgroundColor: colors.bg,
+        color: colors.text,
+        border: `2px solid ${colors.border}`
+      }}
+    >
+      {shortName}
+    </div>
+  );
+};
 
 type TabType = 'venue' | 'form' | 'headtohead' | 'quiz';
 
@@ -25,6 +73,8 @@ const MatchPrediction: React.FC = () => {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
+  const [userResponses, setUserResponses] = useState<UserResponse | null>(null);
+  const [showResponses, setShowResponses] = useState(false);
 
   const getDefaultQuestionsForMatch = (match: Match): Question[] => {
     return [
@@ -231,6 +281,40 @@ const MatchPrediction: React.FC = () => {
     }
   };
 
+  const loadUserResponses = async () => {
+    if (!match) return;
+    try {
+      const responses = await apiService.getUserQuizResponses(match.id);
+      setUserResponses(responses);
+    } catch (error) {
+      console.log('Failed to load user responses:', error);
+    }
+  };
+
+  const handleViewResponses = async () => {
+    // Ensure quiz questions are loaded
+    if (quizQuestions.length === 0 && match) {
+      try {
+        const questions = await apiService.getQuizQuestionsForMatch(match.id);
+        if (questions && questions.length > 0) {
+          setQuizQuestions(questions);
+        } else if (match) {
+          setQuizQuestions(getDefaultQuestionsForMatch(match));
+        }
+      } catch (e) {
+        console.log('Quiz questions load error for responses:', e);
+        if (match) {
+          setQuizQuestions(getDefaultQuestionsForMatch(match));
+        }
+      }
+    }
+
+    if (!userResponses) {
+      await loadUserResponses();
+    }
+    setShowResponses(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-spotify-dark flex items-center justify-center">
@@ -254,6 +338,9 @@ const MatchPrediction: React.FC = () => {
   const predictionCloseTime = match.matchDate - (30 * 60 * 1000);
   const isPredictionOpen = !isCompleted && !isLive && now < predictionCloseTime;
   const hasPredicted = existingPrediction && existingPrediction.predictedWinnerId !== null;
+
+  // Read-only mode for completed matches (accessed from My Predictions page)
+  const isReadOnlyView = isCompleted;
   
   const matchDate = new Date(match.matchDate);
   const today = new Date();
@@ -274,12 +361,12 @@ const MatchPrediction: React.FC = () => {
              <div className="flex items-center">
                <h1 className="text-xl sm:text-3xl font-bold text-spotify-green truncate">Make Prediction</h1>
              </div>
-             <button
-               onClick={() => navigate('/dashboard')}
-               className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap"
-             >
-               Back to Dashboard
-             </button>
+              <button
+                onClick={() => navigate(isReadOnlyView ? '/predictions' : '/dashboard')}
+                className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-3 sm:px-4 py-2 rounded-full text-xs sm:text-sm font-medium whitespace-nowrap"
+              >
+                {isReadOnlyView ? 'Back to Predictions' : 'Back to Dashboard'}
+              </button>
            </div>
          </div>
        </header>
@@ -373,27 +460,42 @@ const MatchPrediction: React.FC = () => {
               </div>
             )}
 
-            {hasPredicted && !isUpcoming && (
+            {hasPredicted && (!isUpcoming || isReadOnlyView) && (
               <div className="mb-8 p-4 bg-spotify-dark rounded-lg text-center">
-                <p className="text-lg text-spotify-text mb-2">
-                  Your prediction: {
-                    existingPrediction?.predictedWinnerId === match.homeTeamId
-                      ? match.homeTeamName
-                      : match.awayTeamName
-                  }
-                </p>
-                {existingPrediction?.isCorrect !== undefined && (
+                <div className="flex items-center justify-center mb-2">
+                  <span className="text-sm font-semibold text-spotify-text mr-3">Your Prediction:</span>
+                  <div className="flex items-center">
+                    <TeamLogo
+                      name={existingPrediction?.predictedWinnerId === match.homeTeamId
+                        ? match.homeTeamName
+                        : match.awayTeamName}
+                      shortName={existingPrediction?.predictedWinnerId === match.homeTeamId
+                        ? match.homeTeamShortName
+                        : match.awayTeamShortName}
+                      logoUrl={existingPrediction?.predictedWinnerId === match.homeTeamId
+                        ? match.homeTeamLogoUrl
+                        : match.awayTeamLogoUrl}
+                    />
+                    <span className="text-sm font-bold text-spotify-text ml-2">
+                      {existingPrediction?.predictedWinnerId === match.homeTeamId
+                        ? match.homeTeamShortName
+                        : match.awayTeamShortName}
+                    </span>
+                  </div>
+                </div>
+                {existingPrediction?.isCorrect !== undefined && existingPrediction?.isCorrect !== null && (
                   <p className={`text-lg ${
                     existingPrediction.isCorrect ? 'text-spotify-green' : 'text-red-400'
                   }`}>
-                    {existingPrediction.isCorrect ? '✓ Correct!' : '✗ Incorrect'}
+                    {existingPrediction.isCorrect ? '✓ Correct!' :
+                     (existingPrediction.pointsEarned === 0 && match.winnerTeamId) ? '✗ Incorrect' : ''}
                     {existingPrediction.pointsEarned > 0 && ` (+${existingPrediction.pointsEarned} points)`}
                   </p>
                 )}
               </div>
             )}
 
-             {isPredictionOpen && !hasPredicted && isTodayMatch && (
+             {isPredictionOpen && !hasPredicted && isTodayMatch && !isReadOnlyView && (
                <div className="text-center">
                  <p className="text-lg text-spotify-textSecondary mb-6">
                    Choose your winner:
@@ -466,32 +568,32 @@ const MatchPrediction: React.FC = () => {
 
           <div className="p-6">
              {activeTab === 'venue' && venueStats && (
-               <div>
-                 <h3 className="text-lg font-medium text-spotify-text mb-4">{venueStats.stadium}, {venueStats.city}</h3>
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                   <div className="bg-spotify-dark p-4 rounded-lg">
-                     <p className="text-sm text-spotify-textMuted mb-1">Pitch Type</p>
-                     <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.pitchType}</p>
-                   </div>
-                   <div className="bg-spotify-dark p-4 rounded-lg">
-                     <p className="text-sm text-spotify-textMuted mb-1">Average Score</p>
-                     <p className="text-xl font-bold text-spotify-green">{venueStats.avgScore}</p>
-                   </div>
-                   <div className="bg-spotify-dark p-4 rounded-lg">
-                     <p className="text-sm text-spotify-textMuted mb-1">Chasing Win %</p>
-                     <p className="text-xl font-bold text-spotify-text">{venueStats.chasingWinPct}%</p>
-                   </div>
-                   <div className="bg-spotify-dark p-4 rounded-lg">
-                     <p className="text-sm text-spotify-textMuted mb-1">Dew Factor</p>
-                     <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.dewFactor}</p>
-                   </div>
-                   <div className="bg-spotify-dark p-4 rounded-lg col-span-1 sm:col-span-2">
-                     <p className="text-sm text-spotify-textMuted mb-1">Boundary Size</p>
-                     <p className="text-lg font-medium text-spotify-text capitalize">{venueStats.boundarySize}</p>
-                   </div>
-                 </div>
-               </div>
-             )}
+              <div>
+                <h3 className="text-lg font-medium text-spotify-text mb-4">{venueStats.stadium}, {venueStats.city}</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="bg-spotify-dark p-4 rounded-lg">
+                    <p className="text-sm text-spotify-textMuted mb-1">Pitch Type</p>
+                    <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.pitchType}</p>
+                  </div>
+                  <div className="bg-spotify-dark p-4 rounded-lg">
+                    <p className="text-sm text-spotify-textMuted mb-1">Average Score</p>
+                    <p className="text-xl font-bold text-spotify-green">{venueStats.avgScore}</p>
+                  </div>
+                  <div className="bg-spotify-dark p-4 rounded-lg">
+                    <p className="text-sm text-spotify-textMuted mb-1">Chasing Win %</p>
+                    <p className="text-xl font-bold text-spotify-text">{venueStats.chasingWinPct}%</p>
+                  </div>
+                  <div className="bg-spotify-dark p-4 rounded-lg">
+                    <p className="text-sm text-spotify-textMuted mb-1">Dew Factor</p>
+                    <p className="text-xl font-bold text-spotify-text capitalize">{venueStats.dewFactor}</p>
+                  </div>
+                  <div className="bg-spotify-dark p-4 rounded-lg col-span-1 sm:col-span-2">
+                    <p className="text-sm text-spotify-textMuted mb-1">Boundary Size</p>
+                    <p className="text-lg font-medium text-spotify-text capitalize">{venueStats.boundarySize}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {activeTab === 'venue' && !venueStats && (
               <div className="text-center">
@@ -586,7 +688,7 @@ const MatchPrediction: React.FC = () => {
           </div>
         </div>
 
-        {isPredictionOpen && isTodayMatch && (
+        {((isPredictionOpen && isTodayMatch) || quizSubmitted) && (
           <div className="mt-8 bg-spotify-surface border border-spotify-surfaceLight rounded-lg overflow-hidden">
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
@@ -645,21 +747,116 @@ const MatchPrediction: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-spotify-green font-medium">
+                  <p className="text-spotify-green font-medium mb-4">
                     Quiz submitted! Check back after the match to see your results.
                   </p>
+                  <button
+                    onClick={handleViewResponses}
+                    className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  >
+                    View responses
+                  </button>
                 </div>
               )}
             </div>
           </div>
         )}
 
+        {showResponses && userResponses && (
+          <div className="mt-8 bg-spotify-surface border border-spotify-surfaceLight rounded-lg overflow-hidden">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-spotify-green">Your Quiz Responses</h3>
+                <button
+                  onClick={() => setShowResponses(false)}
+                  className="text-spotify-textMuted hover:text-spotify-text"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-4">
+                {userResponses.responses.map((response, index) => {
+                  const question = quizQuestions.find(q => q.id.toString() === response.questionId);
+                  if (!question) {
+                    console.log('Question not found for response:', response.questionId);
+                    return null;
+                  }
+
+                  const options = [question.optionA, question.optionB, question.optionC, question.optionD].filter(Boolean);
+                  const selectedOption = response.selectedOption;
+                  let correctOptionText = null;
+
+                  // Find the correct option text based on correctOption letter
+                  if (question.correctOption) {
+                    const optionIndex = question.correctOption.toUpperCase().charCodeAt(0) - 65; // A=0, B=1, etc.
+                    if (optionIndex >= 0 && optionIndex < options.length) {
+                      correctOptionText = options[optionIndex];
+                    }
+                  }
+
+                  const isCorrect = response.isCorrect;
+
+                  return (
+                    <div key={response.questionId} className="bg-spotify-dark p-4 rounded-lg">
+                      <p className="text-spotify-text font-medium mb-3">
+                        <span className="text-spotify-green mr-2">{index + 1}.</span>
+                        {question.questionText}
+                      </p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {options.map((option) => {
+                          let bgColor = 'bg-spotify-surfaceLight';
+                          let textColor = 'text-spotify-text';
+
+                          if (option === selectedOption) {
+                            // User's selected option
+                            if (isCorrect === true) {
+                              // Quiz validated: user was correct - green
+                              bgColor = 'bg-spotify-green';
+                              textColor = 'text-black';
+                            } else if (isCorrect === false && response.pointsEarned !== null) {
+                              // Quiz validated: user was wrong - red
+                              bgColor = 'bg-red-500';
+                              textColor = 'text-white';
+                            } else {
+                              // Quiz not validated yet - yellow
+                              bgColor = 'bg-yellow-500';
+                              textColor = 'text-black';
+                            }
+                          } else if (option === correctOptionText && isCorrect === false && response.pointsEarned !== null) {
+                            // Quiz validated: show correct answer in green when user was wrong
+                            bgColor = 'bg-spotify-green';
+                            textColor = 'text-black';
+                          }
+
+                          return (
+                            <div
+                              key={option}
+                              className={`py-2 px-3 rounded-lg text-sm font-medium ${bgColor} ${textColor}`}
+                            >
+                              {option}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {response.pointsEarned !== undefined && (
+                        <div className="mt-2 text-xs text-spotify-textMuted">
+                          Points earned: {response.pointsEarned}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="mt-8 flex justify-center">
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(isReadOnlyView ? '/predictions' : '/dashboard')}
             className="bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text px-6 py-2 rounded-full text-sm font-medium"
           >
-            Go to Dashboard
+            {isReadOnlyView ? 'Back to Predictions' : 'Go to Dashboard'}
           </button>
         </div>
       </main>

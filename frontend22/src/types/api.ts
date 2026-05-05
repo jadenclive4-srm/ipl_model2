@@ -81,8 +81,8 @@ export interface Prediction {
   matchId: number;
   predictedWinnerId?: number;
   predictedWinnerName?: string;
-  isCorrect: boolean;
-  pointsEarned: number;
+  isCorrect: boolean | null;
+  pointsEarned: number | null;
   createdAt: number;
   homeProbability?: number;
   awayProbability?: number;
@@ -203,4 +203,20 @@ export interface UserPredictionSummary {
   fullName: string;
   predictedTeamName: string;
   matchId: number;
+}
+
+export interface UserResponse {
+  id: string;
+  userId: number;
+  username: string;
+  matchId: number;
+  responses: QuestionResponse[];
+  createdAt: number;
+}
+
+export interface QuestionResponse {
+  questionId: string;
+  selectedOption: string;
+  isCorrect?: boolean;
+  pointsEarned?: number;
 }

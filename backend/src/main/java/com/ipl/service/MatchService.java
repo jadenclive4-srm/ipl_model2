@@ -9,6 +9,7 @@ import com.ipl.repository.TeamRepository;
 import com.ipl.repository.HeadToHeadStatsRepository;
 import com.ipl.repository.VenueStatsRepository;
 import com.ipl.model.VenueStats;
+import org.springframework.beans.factory.annotation.Autowired;
 import com.opencsv.CSVReader;
 import com.opencsv.exceptions.CsvException;
 import lombok.RequiredArgsConstructor;
@@ -38,11 +39,14 @@ import java.util.Optional;
 @Service
 @RequiredArgsConstructor
 public class MatchService {
-    
+
     private final MatchRepository matchRepository;
     private final TeamRepository teamRepository;
-    private final HeadToHeadStatsRepository h2hStatsRepository;
+    private final HeadToHeadStatsRepository headToHeadStatsRepository;
     private final VenueStatsRepository venueStatsRepository;
+
+    @Autowired
+    private PredictionService predictionService;
     
     public List<Match> getAllMatches() {
         return matchRepository.findAllOrderedByMatchNumber();
@@ -179,19 +183,32 @@ public class MatchService {
     public Match updateMatchResult(Long matchId, Long winnerId, Integer homeScore, Integer awayScore, String result) {
         Match match = matchRepository.findById(matchId)
                 .orElseThrow(() -> new RuntimeException("Match not found"));
-        
+
         if (winnerId != null) {
             Team winner = teamRepository.findById(winnerId)
                     .orElseThrow(() -> new RuntimeException("Winner team not found"));
             match.setWinnerTeam(winner);
         }
-        
+
         match.setHomeTeamScore(homeScore);
         match.setAwayTeamScore(awayScore);
         match.setResult(result);
         match.setMatchStatus("COMPLETED");
-        
-        return matchRepository.save(match);
+
+        Match savedMatch = matchRepository.save(match);
+
+        // Automatically evaluate predictions for this match
+        if (winnerId != null) {
+            try {
+                predictionService.evaluatePredictions(matchId);
+                System.out.println("Automatically evaluated predictions for completed match: " + matchId);
+            } catch (Exception e) {
+                System.err.println("Failed to auto-evaluate predictions for match " + matchId + ": " + e.getMessage());
+                // Don't fail the match update if prediction evaluation fails
+            }
+        }
+
+        return savedMatch;
     }
     
     @Transactional
@@ -209,8 +226,21 @@ public class MatchService {
         match.setAwayTeamScore(awayScore);
         match.setResult(result);
         match.setMatchStatus("COMPLETED");
-        
-        return matchRepository.save(match);
+
+        Match savedMatch = matchRepository.save(match);
+
+        // Automatically evaluate predictions for this match
+        if (winnerTeamName != null && !winnerTeamName.isEmpty()) {
+            try {
+                predictionService.evaluatePredictions(matchId);
+                System.out.println("Automatically evaluated predictions for completed match: " + matchId);
+            } catch (Exception e) {
+                System.err.println("Failed to auto-evaluate predictions for match " + matchId + ": " + e.getMessage());
+                // Don't fail the match update if prediction evaluation fails
+            }
+        }
+
+        return savedMatch;
     }
     
     @Transactional
@@ -419,16 +449,16 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
                     Team team2 = teamRepository.findByShortName(team2Name)
                             .orElseThrow(() -> new RuntimeException("Team not found: " + team2Name));
                     
-                    HeadToHeadStats stats = h2hStatsRepository.findByTeamIds(team1.getId(), team2.getId())
+                    HeadToHeadStats stats = headToHeadStatsRepository.findByTeamIds(team1.getId(), team2.getId())
                             .orElse(new HeadToHeadStats());
-                    
+
                     stats.setTeam1(team1);
                     stats.setTeam2(team2);
                     stats.setTotalMatches(totalMatches);
                     stats.setTeam1Wins(team1Wins);
                     stats.setTeam2Wins(team2Wins);
-                    
-                    h2hStatsRepository.save(stats);
+
+                    headToHeadStatsRepository.save(stats);
                     importedCount++;
                 } catch (Exception e) {
                     System.err.println("Error importing h2h row " + i + ": " + e.getMessage());
@@ -441,7 +471,7 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
     public int importH2hStatsFromClasspath(String classpath) throws IOException {
         int importedCount = 0;
         
-        h2hStatsRepository.deleteAll();
+        headToHeadStatsRepository.deleteAll();
         System.out.println("Cleared existing H2H stats");
         
         InputStream is = getClass().getResourceAsStream(classpath);
@@ -516,16 +546,16 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
                     
                     System.out.println("H2H: Saving " + team1.getShortName() + " vs " + team2.getShortName() + " = " + team1WinsVal + "-" + team2WinsVal);
                     
-                    HeadToHeadStats stats = h2hStatsRepository.findByTeamIds(team1.getId(), team2.getId())
+                    HeadToHeadStats stats = headToHeadStatsRepository.findByTeamIds(team1.getId(), team2.getId())
                             .orElseGet(HeadToHeadStats::new);
-                    
+
                     stats.setTeam1(team1);
                     stats.setTeam2(team2);
                     stats.setTotalMatches(totalMatches);
                     stats.setTeam1Wins(team1WinsVal);
                     stats.setTeam2Wins(team2WinsVal);
-                    
-                    h2hStatsRepository.save(stats);
+
+                    headToHeadStatsRepository.save(stats);
                     importedCount++;
                 }
             }
@@ -579,7 +609,7 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
                         
                         int team1Wins = Integer.parseInt(value);
                         
-                        HeadToHeadStats stats = h2hStatsRepository.findByTeamIds(team1.getId(), team2.getId())
+                    HeadToHeadStats stats = headToHeadStatsRepository.findByTeamIds(team1.getId(), team2.getId())
                                 .orElse(new HeadToHeadStats());
                         
                         stats.setTeam1(team1);
@@ -588,7 +618,7 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
                         stats.setTeam1Wins(team1Wins);
                         stats.setTeam2Wins(team1Wins);
                         
-                        h2hStatsRepository.save(stats);
+                    headToHeadStatsRepository.save(stats);
                         importedCount++;
                     }
                 } catch (Exception e) {
@@ -603,7 +633,7 @@ public HeadToHead getHeadToHeadStats(Long team1Id, Long team2Id) {
     }
     
     public HeadToHead getHeadToHeadFromDb(Long team1Id, Long team2Id) {
-        return h2hStatsRepository.findByTeamIds(team1Id, team2Id)
+        return headToHeadStatsRepository.findByTeamIds(team1Id, team2Id)
                 .map(h2h -> {
                     String team1Name = h2h.getTeam1().getTeamName();
                     String team2Name = h2h.getTeam2().getTeamName();
