@@ -17,6 +17,7 @@ const AIQuery: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+
   const fetchData = async () => {
     try {
       const [voteCounts, teams, accuracyData] = await Promise.all([
@@ -47,6 +48,8 @@ const AIQuery: React.FC = () => {
       setLoading(false);
     }
   };
+
+
 
   useEffect(() => {
     fetchData();
@@ -117,66 +120,112 @@ const AIQuery: React.FC = () => {
         </div>
       </div>
 
-      {/* Prediction Accuracy Pie Chart */}
+      {/* Prediction Accuracy Pie Chart and Ask AI */}
       <div className="bg-spotify-surface border border-spotify-surfaceLight shadow-lg rounded-lg mt-8">
         <div className="px-4 py-5 sm:p-6">
-          <div className="mt-0">
-          <h3 className="text-2xl leading-8 font-medium text-spotify-green mb-4 text-center">
-            Overall Prediction Accuracy
-          </h3>
+          <div className="flex flex-col lg:flex-row gap-8">
+            {/* Pie Chart Section */}
+            <div className="flex-1">
+              <h3 className="text-2xl leading-8 font-medium text-spotify-green mb-4 text-center">
+                Overall Prediction Accuracy
+              </h3>
 
-          {accuracy && accuracy.total > 0 && (
-            <div className="text-center mb-4">
-              <p className="text-spotify-text">
-                {((accuracy.correct / accuracy.total) * 100).toFixed(1)}% of predictions are correct so far
-              </p>
+              {accuracy && accuracy.total > 0 && (
+                <div className="text-center mb-4">
+                  <p className="text-spotify-text">
+                    {((accuracy.correct / accuracy.total) * 100).toFixed(1)}% of predictions are correct so far
+                  </p>
+                </div>
+              )}
+
+              {accuracy && accuracy.total > 0 ? (
+                <div className="h-80 sm:h-[400px] md:h-[480px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Correct', value: accuracy.correct },
+                          { name: 'Incorrect', value: accuracy.total - accuracy.correct }
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={120}
+                        innerRadius={50}
+                        dataKey="value"
+                        animationBegin={0}
+                        animationDuration={2000}
+                        animationEasing="ease-out"
+                        label={({ name, percent }) => percent > 0 ? `${name}\n${(percent * 100).toFixed(1)}%` : ''}
+                        labelLine={false}
+                      >
+                        <Cell fill="#1DB954" stroke="#1DB954" strokeWidth={2} />
+                        <Cell fill="#FF6B6B" stroke="#FF6B6B" strokeWidth={2} />
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [`${value} predictions`, name]}
+                        contentStyle={{
+                          backgroundColor: '#1F2937',
+                          border: '1px solid #374151',
+                          borderRadius: '8px',
+                          color: '#F3F4F6'
+                        }}
+                      />
+                      <Legend
+                        verticalAlign="bottom"
+                        height={36}
+                        formatter={(value, entry) => <span style={{ color: entry.color }}>{value}</span>}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="text-spotify-textSecondary">No prediction data available yet.</p>
+              )}
             </div>
-          )}
 
-          {accuracy && accuracy.total > 0 ? (
-            <div className="h-80 sm:h-[400px] md:h-[480px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[
-                      { name: 'Correct', value: accuracy.correct },
-                      { name: 'Incorrect', value: accuracy.total - accuracy.correct }
-                    ]}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={120}
-                    innerRadius={50}
-                    dataKey="value"
-                    animationBegin={0}
-                    animationDuration={2000}
-                    animationEasing="ease-out"
-                    label={({ name, percent }) => percent > 0 ? `${name}\n${(percent * 100).toFixed(1)}%` : ''}
-                    labelLine={false}
-                  >
-                    <Cell fill="#1DB954" stroke="#1DB954" strokeWidth={2} />
-                    <Cell fill="#FF6B6B" stroke="#FF6B6B" strokeWidth={2} />
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number, name: string) => [`${value} predictions`, name]}
-                    contentStyle={{
-                      backgroundColor: '#1F2937',
-                      border: '1px solid #374151',
-                      borderRadius: '8px',
-                      color: '#F3F4F6'
+            {/* Ask AI Card */}
+            <div className="lg:w-80">
+              <div className="bg-spotify-dark p-6 rounded-lg border border-spotify-surfaceLight">
+                <h4 className="text-xl font-medium text-spotify-green mb-4 text-center">
+                  Ask AI
+                </h4>
+                <p className="text-sm text-spotify-textSecondary mb-4 text-center">
+                  Get instant insights about today's matches
+                </p>
+
+                {/* Ask ChatGPT Button */}
+                <div className="mt-6">
+                  <button
+                    onClick={() => window.open('https://chatgpt.com/g/g-69f83cd9d228819194eff94cda37afa1-ipl-2026', '_blank')}
+                    style={{
+                      background: 'linear-gradient(135deg, #4285F4, #A142F4, #EA4335)',
+                      color: 'white',
+                      border: 'none',
+                      padding: '12px 18px',
+                      borderRadius: '10px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s ease',
+                      width: '100%',
                     }}
-                  />
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    formatter={(value, entry) => <span style={{ color: entry.color }}>{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-2px)';
+                      e.currentTarget.style.boxShadow = '0 6px 14px rgba(0,0,0,0.15)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.transform = 'translateY(0)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                  >
+                    Ask ChatGPT
+                  </button>
+                </div>
+
+
+              </div>
             </div>
-          ) : (
-            <p className="text-spotify-textSecondary">No prediction data available yet.</p>
-          )}
-        </div>
+          </div>
         </div>
       </div>
     </div>
