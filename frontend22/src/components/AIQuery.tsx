@@ -1,6 +1,6 @@
 // frontend22/src/components/AIQuery.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiService } from '../services/api';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Team } from '../types/api';
@@ -16,6 +16,24 @@ const AIQuery: React.FC = () => {
   const [accuracy, setAccuracy] = useState<{ correct: number; total: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
+  // Responsive chart dimensions
+  const chartDimensions = useMemo(() => {
+    if (windowWidth >= 1024) { // Desktop
+      return { outerRadius: 140, innerRadius: 60 };
+    } else if (windowWidth >= 640) { // Tablet
+      return { outerRadius: 100, innerRadius: 45 };
+    } else { // Mobile
+      return { outerRadius: 80, innerRadius: 35 };
+    }
+  }, [windowWidth]);
+
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
 
   const fetchData = async () => {
@@ -139,7 +157,7 @@ const AIQuery: React.FC = () => {
               )}
 
               {accuracy && accuracy.total > 0 ? (
-                <div className="h-80 sm:h-[400px] md:h-[480px]">
+                <div className="h-80 sm:h-[400px] md:h-[480px] lg:h-[500px] xl:h-[550px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
@@ -149,13 +167,21 @@ const AIQuery: React.FC = () => {
                         ]}
                         cx="50%"
                         cy="50%"
-                        outerRadius={120}
-                        innerRadius={50}
+                        outerRadius={chartDimensions.outerRadius}
+                        innerRadius={chartDimensions.innerRadius}
                         dataKey="value"
                         animationBegin={0}
                         animationDuration={2000}
                         animationEasing="ease-out"
-                        label={({ name, percent }) => percent > 0 ? `${name}\n${(percent * 100).toFixed(1)}%` : ''}
+                        label={({ name, percent }) => {
+                          const percentage = (percent * 100).toFixed(1);
+                          // On mobile, show only percentage inside pie segments
+                          if (windowWidth < 640) {
+                            return percent > 0 ? `${percentage}%` : '';
+                          }
+                          // On larger screens, show full label
+                          return percent > 0 ? `${name} ${percentage}%` : '';
+                        }}
                         labelLine={false}
                       >
                         <Cell fill="#1DB954" stroke="#1DB954" strokeWidth={2} />
