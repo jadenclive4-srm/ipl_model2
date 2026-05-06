@@ -203,6 +203,13 @@ public class PredictionService {
         Team winner = match.getWinnerTeam();
 
         for (UserPrediction mongoPred : mongoPredictions) {
+            // Skip if already evaluated to prevent double evaluation
+            if (mongoPred.getIsCorrect() != null) {
+                System.out.println("Skipping already evaluated prediction for user " + mongoPred.getUserId() +
+                    " (isCorrect=" + mongoPred.getIsCorrect() + ")");
+                continue;
+            }
+
             boolean isCorrect = false;
             int pointsEarned = 0;
 
