@@ -568,7 +568,9 @@ public class PredictionService {
 
     public Map<String, Long> getOverallPredictionAccuracy() {
         List<UserPrediction> allPredictions = userPredictionRepository.findAll();
-        long correct = allPredictions.stream().filter(UserPrediction::getIsCorrect).count();
+        long correct = allPredictions.stream()
+            .filter(pred -> pred.getIsCorrect() != null && pred.getIsCorrect())
+            .count();
         long total = allPredictions.size();
 
         System.out.println("Overall prediction accuracy: correct=" + correct + ", total=" + total);
