@@ -15,7 +15,11 @@ WORKDIR /app
 COPY backend ./backend
 
 # copy built frontend into Spring Boot static folder
-COPY --from=frontend-build /frontend/build/ ./backend/src/main/resources/static/
+COPY --from=frontend-build /frontend/build/index.html ./backend/src/main/resources/static/
+COPY --from=frontend-build /frontend/build/asset-manifest.json ./backend/src/main/resources/static/
+COPY --from=frontend-build /frontend/build/static/ ./backend/src/main/resources/static/
+COPY --from=frontend-build /frontend/build/logos/ ./backend/src/main/resources/static/logos/
+COPY --from=frontend-build /frontend/build/backgrounds/ ./backend/src/main/resources/static/backgrounds/
 
 WORKDIR /app/backend
 RUN mvn clean package -DskipTests
