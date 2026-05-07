@@ -39,7 +39,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/**", "/api/predictions/vote-counts", "/api/predictions/accuracy").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                .requestMatchers("/", "/index.html", "/static/**", "/logos/**", "/css/**", "/js/**", "/backgrounds/**", "/asset-manifest.json", "/{path:[^\\.]*}").permitAll()
+                .requestMatchers("/", "/index.html", "/static/**", "/logos/**", "/css/**", "/js/**", "/backgrounds/**", "/asset-manifest.json", "/favicon.ico", "/{path:[^\\.]*}").permitAll()
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session
