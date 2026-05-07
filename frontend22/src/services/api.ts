@@ -19,6 +19,7 @@ import {
   BatchAnswerRequest,
   VenueStats,
   UserPredictionSummary,
+  MatchLeaderboardEntryDTO,
 } from '../types/api';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8081');
@@ -286,6 +287,10 @@ class ApiService {
 
   async getAvailableTeamsChannels(): Promise<{ channels: string[]; count: number; type?: string }> {
     return this.request<{ channels: string[]; count: number; type?: string }>('/api/leaderboard/teams-channels');
+  }
+
+  async getMatchLeaderboard(matchId: number): Promise<MatchLeaderboardEntryDTO[]> {
+    return this.request<MatchLeaderboardEntryDTO[]>(`/api/predictions/leaderboard/${matchId}`);
   }
 
    async getAvailableGroupChats(): Promise<{ groupChats: string[]; count: number; type?: string }> {

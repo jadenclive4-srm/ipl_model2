@@ -10,6 +10,7 @@ import com.ipl.model.mongo.UserMongo;
 import com.ipl.model.mongo.UserPrediction;
 import com.ipl.model.mongo.UserResponse;
 import com.ipl.repository.MatchRepository;
+import com.ipl.dto.MatchLeaderboardEntryDTO;
 import com.ipl.repository.PredictionRepository;
 import com.ipl.repository.QuizAnswerRepository;
 import com.ipl.repository.TeamRepository;
@@ -575,5 +576,76 @@ public class PredictionService {
 
         System.out.println("Overall prediction accuracy: correct=" + correct + ", total=" + total);
         return Map.of("correct", correct, "total", total);
+    }
+
+    public List<MatchLeaderboardEntryDTO> getMatchLeaderboard(Long matchId) {
+        // Get all evaluated predictions for this match
+        List<UserPrediction> predictions = userPredictionRepository.findByMatchId(matchId).stream()
+                .filter(p -> p.getIsCorrect() != null && p.getPointsEarned() != null)
+                .collect(Collectors.toList());
+
+        // Get all evaluated quiz responses for this match
+        List<UserResponse> responses = userResponseRepository.findByMatchId(matchId);
+
+        // Aggregate points by user
+        Map<Long, MatchLeaderboardEntryDTO> userEntries = new HashMap<>();
+
+        // Add prediction points
+        for (UserPrediction pred : predictions) {
+            Long userId = pred.getUserId();
+            userEntries.computeIfAbsent(userId, k -> {
+                MatchLeaderboardEntryDTO dto = new MatchLeaderboardEntryDTO();
+                dto.setUserId(userId);
+                dto.setUsername(pred.getUsername());
+                dto.setFullName(pred.getUsername()); // Using username as fullname for now
+                dto.setPredictionPoints(0L);
+                dto.setQuizPoints(0L);
+                dto.setTotalPoints(0L);
+                return dto;
+            });
+            MatchLeaderboardEntryDTO entry = userEntries.get(userId);
+            entry.setPredictionPoints(entry.getPredictionPoints() + pred.getPointsEarned());
+            entry.setTotalPoints(entry.getTotalPoints() + pred.getPointsEarned());
+        }
+
+        // Add quiz points
+        for (UserResponse response : responses) {
+            Long userId = response.getUserId();
+            long quizPoints = response.getResponses() != null ?
+                response.getResponses().stream()
+                    .filter(qr -> qr.getIsCorrect() != null && qr.getIsCorrect() && qr.getPointsEarned() != null)
+                    .mapToLong(qr -> qr.getPointsEarned())
+                    .sum() : 0L;
+
+            userEntries.computeIfAbsent(userId, k -> {
+                MatchLeaderboardEntryDTO dto = new MatchLeaderboardEntryDTO();
+                dto.setUserId(userId);
+                dto.setUsername(response.getUsername());
+                dto.setFullName(response.getUsername()); // Using username as fullname for now
+                dto.setPredictionPoints(0L);
+                dto.setQuizPoints(0L);
+                dto.setTotalPoints(0L);
+                return dto;
+            });
+            MatchLeaderboardEntryDTO entry = userEntries.get(userId);
+            entry.setQuizPoints(entry.getQuizPoints() + quizPoints);
+            entry.setTotalPoints(entry.getTotalPoints() + quizPoints);
+        }
+
+        // Sort by total points descending
+        List<MatchLeaderboardEntryDTO> leaderboard = userEntries.values().stream()
+                .sorted((a, b) -> Long.compare(b.getTotalPoints(), a.getTotalPoints()))
+                .collect(Collectors.toList());
+
+        // Assign ranks
+        int rank = 1;
+        for (int i = 0; i < leaderboard.size(); i++) {
+            if (i > 0 && !leaderboard.get(i).getTotalPoints().equals(leaderboard.get(i-1).getTotalPoints())) {
+                rank = i + 1;
+            }
+            leaderboard.get(i).setRank(rank);
+        }
+
+        return leaderboard;
     }
 }

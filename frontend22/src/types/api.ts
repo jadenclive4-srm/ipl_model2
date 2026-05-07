@@ -220,3 +220,13 @@ export interface QuestionResponse {
   isCorrect?: boolean;
   pointsEarned?: number;
 }
+
+export interface MatchLeaderboardEntryDTO {
+  userId: number;
+  username: string;
+  fullName: string;
+  predictionPoints: number;
+  quizPoints: number;
+  totalPoints: number;
+  rank: number;
+}

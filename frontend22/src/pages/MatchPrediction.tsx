@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiService } from '../services/api';
-import { Match, Prediction, HeadToHead, VenueStats, Question, UserResponse } from '../types/api';
+import { Match, Prediction, HeadToHead, VenueStats, Question, UserResponse, MatchLeaderboardEntryDTO } from '../types/api';
 
 // Team logo component and supporting functions
 const teamColors: Record<string, { bg: string; text: string; border: string }> = {
@@ -54,7 +54,7 @@ const TeamLogo: React.FC<{ name: string; shortName: string; size?: 'normal' | 'l
   );
 };
 
-type TabType = 'venue' | 'form' | 'headtohead' | 'quiz';
+type TabType = 'venue' | 'form' | 'headtohead' | 'quiz' | 'leaderboard';
 
 const MatchPrediction: React.FC = () => {
   const { user } = useAuth();
@@ -75,6 +75,8 @@ const MatchPrediction: React.FC = () => {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [userResponses, setUserResponses] = useState<UserResponse | null>(null);
   const [showResponses, setShowResponses] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<MatchLeaderboardEntryDTO[]>([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
 
   const getDefaultQuestionsForMatch = (match: Match): Question[] => {
     return [
@@ -225,9 +227,28 @@ const MatchPrediction: React.FC = () => {
     }
   }, [matchId, user]);
 
+  const loadLeaderboard = useCallback(async () => {
+    if (!match) return;
+    try {
+      setLoadingLeaderboard(true);
+      const leaderboardData = await apiService.getMatchLeaderboard(match.id);
+      setLeaderboard(leaderboardData);
+    } catch (error) {
+      console.log('Failed to load leaderboard:', error);
+    } finally {
+      setLoadingLeaderboard(false);
+    }
+  }, [match]);
+
   useEffect(() => {
     loadMatchData();
   }, [loadMatchData]);
+
+  useEffect(() => {
+    if (activeTab === 'leaderboard' && match && leaderboard.length === 0) {
+      loadLeaderboard();
+    }
+  }, [activeTab, match, leaderboard.length, loadLeaderboard]);
 
   const handlePrediction = async (predictedWinnerId: number) => {
     if (!user || !match) return;
@@ -341,7 +362,7 @@ const MatchPrediction: React.FC = () => {
 
   // Read-only mode for completed matches (accessed from My Predictions page)
   const isReadOnlyView = isCompleted;
-  
+
   const matchDate = new Date(match.matchDate);
   const today = new Date();
   const isTodayMatch = matchDate.toDateString() === today.toDateString() || isLive;
@@ -351,6 +372,7 @@ const MatchPrediction: React.FC = () => {
     { id: 'form' as TabType, name: 'Current Form', current: activeTab === 'form' },
     { id: 'headtohead' as TabType, name: 'Head to Head', current: activeTab === 'headtohead' },
     ...(isTodayMatch ? [{ id: 'quiz' as TabType, name: 'Answer the Quiz', current: activeTab === 'quiz' }] : []),
+    ...(true ? [{ id: 'leaderboard' as TabType, name: 'Leaderboard', current: activeTab === 'leaderboard' }] : []),
   ];
 
   return (
@@ -683,6 +705,41 @@ const MatchPrediction: React.FC = () => {
                 <div className="bg-spotify-dark p-4 rounded-lg">
                   <p className="text-spotify-text font-medium">5 Questions - 5 Bonus Points</p>
                 </div>
+              </div>
+            )}
+
+            {activeTab === 'leaderboard' && (
+              <div>
+                <h3 className="text-lg font-medium text-spotify-text mb-4">Match Leaderboard</h3>
+                {loadingLeaderboard ? (
+                  <div className="text-center py-4">
+                    <p className="text-spotify-textMuted">Loading leaderboard...</p>
+                  </div>
+                ) : leaderboard.length > 0 ? (
+                  <div className="space-y-2">
+                    {leaderboard.map((entry, index) => (
+                      <div key={entry.userId} className="bg-spotify-dark p-4 rounded-lg flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <span className="text-spotify-green font-bold text-lg">#{entry.rank}</span>
+                          <div>
+                            <p className="text-spotify-text font-medium">{entry.username}</p>
+                            <p className="text-spotify-textMuted text-sm">
+                              Prediction: {entry.predictionPoints} pts | Quiz: {entry.quizPoints} pts
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-spotify-green font-bold text-xl">{entry.totalPoints}</p>
+                          <p className="text-spotify-textMuted text-sm">Total Points</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-spotify-textMuted">No leaderboard data available</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

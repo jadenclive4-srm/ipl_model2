@@ -2,6 +2,7 @@ package com.ipl.controller;
 
 import com.ipl.dto.PredictionDTO;
 import com.ipl.dto.UserPredictionDTO;
+import com.ipl.dto.MatchLeaderboardEntryDTO;
 import com.ipl.model.Match;
 import com.ipl.model.Prediction;
 import com.ipl.model.User;
@@ -323,6 +324,18 @@ public class PredictionController {
             return ResponseEntity.ok(accuracy);
         } catch (Exception e) {
             System.err.println("Error getting prediction accuracy: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/leaderboard/{matchId}")
+    public ResponseEntity<List<MatchLeaderboardEntryDTO>> getMatchLeaderboard(@PathVariable Long matchId) {
+        try {
+            List<MatchLeaderboardEntryDTO> leaderboard = predictionService.getMatchLeaderboard(matchId);
+            return ResponseEntity.ok(leaderboard);
+        } catch (Exception e) {
+            System.err.println("Error getting match leaderboard: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
