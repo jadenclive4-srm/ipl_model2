@@ -18,14 +18,11 @@ public class FrontendResourceConfig implements WebMvcConfigurer {
         
         registry.addResourceHandler("/favicon.ico")
                 .addResourceLocations("classpath:/static/");
-        
+
         registry.addResourceHandler("/manifest.json")
                 .addResourceLocations("classpath:/static/");
-        
+
         registry.addResourceHandler("/asset-manifest.json")
-                .addResourceLocations("classpath:/static/");
-        
-        registry.addResourceHandler("/index.html")
                 .addResourceLocations("classpath:/static/");
     }
 }

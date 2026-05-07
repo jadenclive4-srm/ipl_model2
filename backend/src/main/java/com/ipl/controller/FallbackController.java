@@ -11,23 +11,19 @@ import org.springframework.web.bind.annotation.ResponseBody;
 public class FallbackController {
 
     @GetMapping(value = "/", produces = MediaType.TEXT_HTML_VALUE)
-    @ResponseBody
-    public String root() throws Exception {
-        Resource resource = new ClassPathResource("static/index.html");
-        return new String(resource.getInputStream().readAllBytes());
+    public String root() {
+        return "forward:/index.html";
     }
-    
+
     @GetMapping(value = "/index.html", produces = MediaType.TEXT_HTML_VALUE)
     @ResponseBody
     public String index() throws Exception {
         Resource resource = new ClassPathResource("static/index.html");
         return new String(resource.getInputStream().readAllBytes());
     }
-    
+
     @GetMapping(value = "/{path:[^\\.]*}")
-    @ResponseBody
-    public String fallback() throws Exception {
-        Resource resource = new ClassPathResource("static/index.html");
-        return new String(resource.getInputStream().readAllBytes());
+    public String fallback() {
+        return "forward:/index.html";
     }
 }
