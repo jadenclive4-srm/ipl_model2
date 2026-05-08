@@ -77,6 +77,8 @@ const MatchPrediction: React.FC = () => {
   const [showResponses, setShowResponses] = useState(false);
   const [leaderboard, setLeaderboard] = useState<MatchLeaderboardEntryDTO[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
 
   const getDefaultQuestionsForMatch = (match: Match): Question[] => {
     return [
@@ -263,14 +265,32 @@ const MatchPrediction: React.FC = () => {
         matchId: match.id,
         predictedWinnerId,
       });
-      setSuccess('Prediction submitted successfully!');
+      setSuccess('Prediction saved successfully!');
       const pred = await apiService.getUserMatchPrediction(user.id, match.id);
       setExistingPrediction(pred);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit prediction');
+      setError(err instanceof Error ? err.message : 'Failed to save prediction');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleTeamSelect = (predictedWinnerId: number) => {
+    setSelectedTeamId(predictedWinnerId);
+    setShowConfirmDialog(true);
+  };
+
+  const confirmPrediction = () => {
+    if (selectedTeamId !== null) {
+      handlePrediction(selectedTeamId);
+    }
+    setShowConfirmDialog(false);
+    setSelectedTeamId(null);
+  };
+
+  const cancelPrediction = () => {
+    setShowConfirmDialog(false);
+    setSelectedTeamId(null);
   };
 
   const handleQuizSubmit = async () => {
@@ -522,28 +542,28 @@ const MatchPrediction: React.FC = () => {
                  <p className="text-lg text-spotify-textSecondary mb-6">
                    Choose your winner:
                  </p>
-                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-                   <button
-                     onClick={() => handlePrediction(match.homeTeamId)}
-                     disabled={submitting}
-                     className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-greenHover text-white py-4 px-6 rounded-2xl text-lg font-bold disabled:opacity-50 flex flex-col items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-95"
-                   >
-                     {match.homeTeamLogoUrl && (
-                       <img src={match.homeTeamLogoUrl} alt={match.homeTeamShortName} className="w-16 h-16 object-contain mb-2" />
-                     )}
-                     <span className="text-sm sm:text-base">{match.homeTeamShortName}</span>
-                   </button>
-                   <button
-                     onClick={() => handlePrediction(match.awayTeamId)}
-                     disabled={submitting}
-                     className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-greenHover text-white py-4 px-6 rounded-2xl text-lg font-bold disabled:opacity-50 flex flex-col items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-95"
-                   >
-                     {match.awayTeamLogoUrl && (
-                       <img src={match.awayTeamLogoUrl} alt={match.awayTeamShortName} className="w-16 h-16 object-contain mb-2" />
-                     )}
-                     <span className="text-sm sm:text-base">{match.awayTeamShortName}</span>
-                   </button>
-                 </div>
+                  <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+                    <button
+                      onClick={() => handleTeamSelect(match.homeTeamId)}
+                      disabled={submitting}
+                      className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-greenHover text-white py-4 px-6 rounded-2xl text-lg font-bold disabled:opacity-50 flex flex-col items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-95"
+                    >
+                      {match.homeTeamLogoUrl && (
+                        <img src={match.homeTeamLogoUrl} alt={match.homeTeamShortName} className="w-16 h-16 object-contain mb-2" />
+                      )}
+                      <span className="text-sm sm:text-base">{match.homeTeamShortName}</span>
+                    </button>
+                    <button
+                      onClick={() => handleTeamSelect(match.awayTeamId)}
+                      disabled={submitting}
+                      className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-greenHover text-white py-4 px-6 rounded-2xl text-lg font-bold disabled:opacity-50 flex flex-col items-center justify-center transition-transform duration-200 hover:scale-[1.02] active:scale-95"
+                    >
+                      {match.awayTeamLogoUrl && (
+                        <img src={match.awayTeamLogoUrl} alt={match.awayTeamShortName} className="w-16 h-16 object-contain mb-2" />
+                      )}
+                      <span className="text-sm sm:text-base">{match.awayTeamShortName}</span>
+                    </button>
+                  </div>
                </div>
              )}
 
@@ -717,23 +737,45 @@ const MatchPrediction: React.FC = () => {
                   </div>
                 ) : leaderboard.length > 0 ? (
                   <div className="space-y-2">
-                    {leaderboard.map((entry, index) => (
-                      <div key={entry.userId} className="bg-spotify-dark p-4 rounded-lg flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <span className="text-spotify-green font-bold text-lg">#{entry.rank}</span>
-                          <div>
-                            <p className="text-spotify-text font-medium">{entry.username}</p>
-                            <p className="text-spotify-textMuted text-sm">
-                              Prediction: {entry.predictionPoints} pts | Quiz: {entry.quizPoints} pts
+                    {leaderboard.map((entry, index) => {
+                      const isCurrentUser = entry.userId === user?.id;
+                      return (
+                        <div
+                          key={entry.userId}
+                          className={`${
+                            isCurrentUser
+                              ? 'bg-gradient-to-r from-spotify-green/20 to-spotify-green/10 border-2 border-spotify-green/50 p-6 rounded-xl shadow-lg transform scale-[1.02]'
+                              : 'bg-spotify-dark p-4 rounded-lg'
+                          } flex items-center justify-between`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <span className={`${
+                              isCurrentUser ? 'text-spotify-green font-bold text-xl' : 'text-spotify-green font-bold text-lg'
+                            }`}>
+                              #{entry.rank}
+                            </span>
+                            <div>
+                              <p className={`${
+                                isCurrentUser ? 'text-spotify-text font-bold text-lg' : 'text-spotify-text font-medium'
+                              }`}>
+                                {entry.username} {isCurrentUser && '(You)'}
+                              </p>
+                              <p className="text-spotify-textMuted text-sm">
+                                Prediction: {entry.predictionPoints} pts | Quiz: {entry.quizPoints} pts
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className={`${
+                              isCurrentUser ? 'text-spotify-green font-bold text-2xl' : 'text-spotify-green font-bold text-xl'
+                            }`}>
+                              {entry.totalPoints}
                             </p>
+                            <p className="text-spotify-textMuted text-sm">Total Points</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-spotify-green font-bold text-xl">{entry.totalPoints}</p>
-                          <p className="text-spotify-textMuted text-sm">Total Points</p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-4">
@@ -917,6 +959,47 @@ const MatchPrediction: React.FC = () => {
           </button>
         </div>
       </main>
+
+      {/* Confirmation Dialog */}
+      {showConfirmDialog && selectedTeamId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-spotify-surface border border-spotify-surfaceLight rounded-lg p-6 mx-4 max-w-sm w-full">
+            <div className="text-center">
+              <h3 className="text-lg font-bold text-spotify-text mb-4">Confirm Your Prediction</h3>
+              <div className="flex items-center justify-center mb-6">
+                <TeamLogo
+                  name={selectedTeamId === match.homeTeamId ? match.homeTeamName : match.awayTeamName}
+                  shortName={selectedTeamId === match.homeTeamId ? match.homeTeamShortName : match.awayTeamShortName}
+                  logoUrl={selectedTeamId === match.homeTeamId ? match.homeTeamLogoUrl : match.awayTeamLogoUrl}
+                  size="large"
+                />
+                <span className="ml-4 text-xl font-bold text-spotify-text">
+                  {selectedTeamId === match.homeTeamId ? match.homeTeamShortName : match.awayTeamShortName}
+                </span>
+              </div>
+              <p className="text-spotify-textSecondary mb-6">
+                Are you sure you want to predict this team as the winner?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={cancelPrediction}
+                  disabled={submitting}
+                  className="flex-1 bg-spotify-surfaceLight hover:bg-spotify-surfaceHover text-spotify-text py-3 px-4 rounded-full font-medium disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmPrediction}
+                  disabled={submitting}
+                  className="flex-1 bg-spotify-green hover:bg-spotify-greenHover text-black py-3 px-4 rounded-full font-bold disabled:opacity-50"
+                >
+                  {submitting ? 'Saving...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

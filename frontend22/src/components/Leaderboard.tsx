@@ -1,6 +1,7 @@
 // frontend22/src/components/Leaderboard.tsx
 
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { User } from '../types/api';
 
@@ -11,6 +12,7 @@ interface LeaderboardProps {
 type TeamsMode = 'webhook' | 'groupchat' | 'graph' | 'powerautomate';
 
 const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -514,7 +516,11 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
       </div>
       <ul className="divide-y divide-spotify-surfaceLight">
         {users.map((user, index) => (
-          <li key={user.id} className="px-4 py-4 sm:px-6 hover:bg-spotify-surfaceLight transition-colors border-b border-spotify-surfaceLight last:border-b-0">
+          <li key={user.id} className={`px-4 py-4 sm:px-6 hover:bg-spotify-surfaceLight transition-colors border-b border-spotify-surfaceLight last:border-b-0 ${
+            currentUser && user.id === currentUser.id
+              ? 'bg-gradient-to-r from-spotify-green/20 to-spotify-green/10 border-2 border-spotify-green/50 shadow-md ring-1 ring-spotify-green/20'
+              : ''
+          }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center">
                 <div className="flex-shrink-0">
@@ -528,8 +534,18 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
                   </span>
                 </div>
                 <div className="ml-4">
-                  <div className="text-sm font-medium text-spotify-text">
-                    {user.fullName || user.username}
+                  <div className="flex items-center gap-2">
+                    <div className={`text-sm font-medium ${
+                      currentUser && user.id === currentUser.id ? 'text-spotify-green font-bold' : 'text-spotify-text'
+                    }`}>
+                      {user.fullName || user.username}
+                    </div>
+                    {currentUser && user.id === currentUser.id && (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold bg-spotify-green text-spotify-black shadow-sm">
+                        <span>⭐</span>
+                        You
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-spotify-textMuted">
                     @{user.username}
@@ -537,7 +553,9 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-sm font-medium text-spotify-text">
+                <div className={`text-sm font-medium ${
+                  currentUser && user.id === currentUser.id ? 'text-spotify-green font-bold' : 'text-spotify-text'
+                }`}>
                   {user.points} points
                 </div>
                 <div className="text-sm text-spotify-textMuted">

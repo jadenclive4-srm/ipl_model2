@@ -92,7 +92,7 @@ const Dashboard: React.FC = () => {
                 <h1 className="text-xl font-bold text-spotify-green">IPL Predictor</h1>
                 <div className="flex items-center justify-center space-x-2 mt-1">
                     <span className="text-spotify-green font-semibold">Points:</span>
-                    <span className="bg-spotify-green/20 text-spotify-green px-2 py-0.5 rounded-full text-sm font-medium">
+                    <span className="bg-gradient-to-r from-spotify-green to-spotify-green/80 text-spotify-black px-4 py-1 rounded-full text-lg font-bold shadow-lg border-2 border-spotify-green/50">
                         {userPoints}
                     </span>
                 </div>
@@ -114,7 +114,7 @@ const Dashboard: React.FC = () => {
               <span className="text-spotify-text">Welcome, {user?.fullName || user?.username}</span>
               <div className="flex items-center space-x-2">
                 <span className="text-spotify-green font-semibold">Points:</span>
-                <span className="bg-spotify-green/20 text-spotify-green px-2 py-0.5 rounded-full text-sm font-medium">
+                <span className="bg-gradient-to-r from-spotify-green to-spotify-green/80 text-spotify-black px-4 py-1 rounded-full text-lg font-bold shadow-lg border-2 border-spotify-green/50">
                   {userPoints}
                 </span>
               </div>
