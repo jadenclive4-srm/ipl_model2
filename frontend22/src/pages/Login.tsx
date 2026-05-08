@@ -7,11 +7,11 @@ import { useNavigate } from 'react-router-dom';
 const Login: React.FC = () => {
   const [isChangePassword, setIsChangePassword] = useState(false);
   const [loginData, setLoginData] = useState({
-    username: '',
+    identifier: '',
     password: '',
   });
   const [changePasswordData, setChangePasswordData] = useState({
-    email: '',
+    identifier: '',
     currentPassword: '',
     newPassword: '',
     confirmPassword: '',
@@ -68,10 +68,10 @@ const Login: React.FC = () => {
         if (changePasswordData.newPassword !== changePasswordData.confirmPassword) {
           throw new Error('New passwords do not match');
         }
-        await changePassword(changePasswordData.email, changePasswordData.currentPassword, changePasswordData.newPassword);
+        await changePassword(changePasswordData.identifier, changePasswordData.currentPassword, changePasswordData.newPassword);
         setSuccess('Password changed successfully');
         setChangePasswordData({
-          email: '',
+          identifier: '',
           currentPassword: '',
           newPassword: '',
           confirmPassword: '',
@@ -81,7 +81,7 @@ const Login: React.FC = () => {
         setShowConfirmPassword(false);
       } else {
         await login({
-          username: loginData.username,
+          identifier: loginData.identifier,
           password: loginData.password,
         });
         navigate('/dashboard');
@@ -228,15 +228,15 @@ const Login: React.FC = () => {
               <div className="space-y-4">
                 {!isChangePassword && (
                   <div>
-                    <label htmlFor="username" className="sr-only">Username</label>
+                    <label htmlFor="identifier" className="sr-only">Email or User ID</label>
                     <input
-                      id="username"
-                      name="username"
+                      id="identifier"
+                      name="identifier"
                       type="text"
                       required
                       className="appearance-none block w-full px-4 py-3 mt-1 text-spotify-text border border-spotify-surfaceLight rounded-lg bg-spotify-surface placeholder-spotify-textMuted focus:outline-none focus:ring-2 focus:ring-spotify-green focus:border-spotify-green transition-all duration-200 sm:text-sm"
-                      placeholder="Username"
-                      value={loginData.username}
+                      placeholder="Email or User ID"
+                      value={loginData.identifier}
                       onChange={handleInputChange}
                     />
                   </div>
@@ -244,15 +244,15 @@ const Login: React.FC = () => {
                 {isChangePassword ? (
                   <>
                     <div>
-                      <label htmlFor="email" className="sr-only">Email address</label>
+                      <label htmlFor="identifier" className="sr-only">Email, Username, or User ID</label>
                       <input
-                        id="email"
-                        name="email"
-                        type="email"
+                        id="identifier"
+                        name="identifier"
+                        type="text"
                         required
                         className="appearance-none block w-full px-4 py-3 mt-1 text-spotify-text border border-spotify-surfaceLight rounded-lg bg-spotify-surface placeholder-spotify-textMuted focus:outline-none focus:ring-2 focus:ring-spotify-green focus:border-spotify-green transition-all duration-200 sm:text-sm"
-                        placeholder="Email address"
-                        value={changePasswordData.email}
+                        placeholder="Email, Username, or User ID"
+                        value={changePasswordData.identifier}
                         onChange={handleInputChange}
                       />
                     </div>

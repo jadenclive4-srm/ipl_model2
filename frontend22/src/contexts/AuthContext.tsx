@@ -12,7 +12,7 @@ interface AuthContextType {
   register: (userData: AuthRequest) => Promise<RegisterResponse>;
   verifyOtpAndLogin: (email: string, otp: string) => Promise<void>;
   resendOtp: (email: string) => Promise<void>;
-  changePassword: (email: string, currentPassword: string, newPassword: string) => Promise<void>;
+  changePassword: (identifier: string, currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => void;
   setSession: (auth: AuthResponse) => void;
   isAuthenticated: boolean;
@@ -153,9 +153,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     };
 
-    const changePassword = async (email: string, currentPassword: string, newPassword: string) => {
+    const changePassword = async (identifier: string, currentPassword: string, newPassword: string) => {
       try {
-        await apiService.changePassword(email, currentPassword, newPassword);
+        await apiService.changePassword(identifier, currentPassword, newPassword);
       } catch (error) {
         throw error;
       }

@@ -303,7 +303,76 @@ public class UserService implements UserDetailsService {
 
         return Optional.empty();
     }
-    
+
+    public Optional<User> findByEmail(String email) {
+        // Prioritize MongoDB for consistency (canonical source)
+        try {
+            Optional<UserMongo> mongoUser = userMongoRepository.findByEmail(email);
+            if (mongoUser.isPresent()) {
+                UserMongo um = mongoUser.get();
+                User user = new User();
+                user.setId(um.getId()); // Use MongoDB ID as canonical
+                user.setUsername(um.getUsername());
+                user.setEmail(um.getEmail());
+                user.setFullName(um.getFullName());
+                user.setPassword(um.getPassword());
+                user.setRole(um.getRole());
+                user.setCreatedAt(um.getCreatedAt());
+                user.setUpdatedAt(um.getUpdatedAt());
+                log.debug("Found user {} in MongoDB (ID: {})", email, user.getId());
+                return Optional.of(user);
+            }
+        } catch (Exception e) {
+            log.error("MongoDB lookup failed for email {}: {}", email, e.getMessage());
+        }
+
+        // Fallback to H2 for backward compatibility
+        Optional<User> h2User = userRepository.findByEmail(email);
+        if (h2User.isPresent()) {
+            log.debug("Found user {} in H2 only (ID: {})", email, h2User.get().getId());
+            return h2User;
+        }
+
+        return Optional.empty();
+    }
+
+    public Optional<User> findByIdentifier(String identifier) {
+        // Try to find by email first
+        Optional<User> user = findByEmail(identifier);
+        if (user.isPresent()) {
+            return user;
+        }
+
+        // Try to find by username
+        user = findByUsername(identifier);
+        if (user.isPresent()) {
+            return user;
+        }
+
+        // Try to find by uniqueUserId (user ID)
+        try {
+            Optional<UserMongo> mongoUser = userMongoRepository.findByUniqueUserId(identifier);
+            if (mongoUser.isPresent()) {
+                UserMongo um = mongoUser.get();
+                User u = new User();
+                u.setId(um.getId());
+                u.setUsername(um.getUsername());
+                u.setEmail(um.getEmail());
+                u.setFullName(um.getFullName());
+                u.setPassword(um.getPassword());
+                u.setRole(um.getRole());
+                u.setCreatedAt(um.getCreatedAt());
+                u.setUpdatedAt(um.getUpdatedAt());
+                log.debug("Found user {} by uniqueUserId (ID: {})", identifier, u.getId());
+                return Optional.of(u);
+            }
+        } catch (Exception e) {
+            log.error("MongoDB lookup failed for uniqueUserId {}: {}", identifier, e.getMessage());
+        }
+
+        return Optional.empty();
+    }
+
     public Optional<User> findById(Long id) {
         // First check H2
         Optional<User> h2User = userRepository.findById(id);
@@ -1089,14 +1158,16 @@ public class UserService implements UserDetailsService {
         log.info("Password reset successfully for user: {} (MongoDB only)", userMongo.getUsername());
     }
 
-    /**
-     * Change password for a user by email
-     */
-    @Transactional
-    public void changePassword(String email, String currentPassword, String newPassword) {
-        // Find user directly in MongoDB
-        UserMongo userMongo = userMongoRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found with email: " + email));
+     /**
+      * Change password for a user by email, username, or user ID
+      */
+     @Transactional
+     public void changePassword(String identifier, String currentPassword, String newPassword) {
+         // Find user directly in MongoDB by email, username, or uniqueUserId
+         UserMongo userMongo = userMongoRepository.findByEmail(identifier)
+                 .or(() -> userMongoRepository.findByUsername(identifier))
+                 .or(() -> userMongoRepository.findByUniqueUserId(identifier))
+                 .orElseThrow(() -> new RuntimeException("User not found with email, username, or user ID: " + identifier));
 
         // Verify current password
         if (!passwordEncoder.matches(currentPassword, userMongo.getPassword())) {
@@ -1109,7 +1180,7 @@ public class UserService implements UserDetailsService {
         userMongo.setUpdatedAt(System.currentTimeMillis());
         userMongoRepository.save(userMongo);
 
-        log.info("Password changed successfully for user: {} (MongoDB only)", userMongo.getUsername());
+        log.info("Password changed successfully for user: {} using identifier: {} (MongoDB only)", userMongo.getUsername(), identifier);
     }
 
     /**

@@ -125,10 +125,8 @@ export interface HeadToHead {
 }
 
 export interface AuthRequest {
-  username: string;
-  userId?: string;
+  identifier: string;
   password: string;
-  email?: string;
   fullName?: string;
   role?: string;
 }

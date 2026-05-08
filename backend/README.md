@@ -114,7 +114,58 @@ Response:
 ### Users
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login user
+- `POST /api/auth/change-password` - Change user password (by email, username, or user ID)
 - `POST /api/admin/users` - Admin: Create user directly (email, username, password)
+
+#### Change Password
+**POST** `/api/auth/change-password` - Change user password using email, username, or user ID
+
+Request:
+```json
+{
+  "identifier": "user@example.com", // or username or user ID
+  "currentPassword": "oldpassword123",
+  "newPassword": "newpassword123"
+}
+```
+
+Response:
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+#### Login
+**POST** `/api/auth/login` - Authenticate user with email or user ID and password
+
+Request:
+```json
+{
+  "identifier": "user@example.com",
+  "password": "password123"
+}
+```
+
+Or:
+```json
+{
+  "identifier": "USR001",
+  "password": "password123"
+}
+```
+
+Response:
+```json
+{
+  "username": "john_doe",
+  "email": "user@example.com",
+  "fullName": "John Doe",
+  "token": "jwt_token_here",
+  "userId": 123,
+  "role": "USER"
+}
+```
 
 #### Admin Create User
 **POST** `/api/admin/users` - Create user directly in MongoDB only (no OTP verification)

@@ -89,21 +89,30 @@ public class AuthController {
     
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody AuthDTO authDTO) {
-        System.out.println("LOGIN attempt for username: " + authDTO.getUsername());
+        String identifier = authDTO.getIdentifier();
+        if (identifier == null || identifier.trim().isEmpty()) {
+            Map<String, String> error = new HashMap<>();
+            error.put("error", "Email or User ID is required");
+            return ResponseEntity.badRequest().body(error);
+        }
+
+        System.out.println("LOGIN attempt for identifier: " + identifier);
         try {
+            // Find user by identifier (email, username, or user ID)
+            User user = userService.findByIdentifier(identifier)
+                    .orElseThrow(() -> new RuntimeException("User not found with identifier: " + identifier));
+
+            // Use the username for authentication (since SecurityConfig expects username)
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            authDTO.getUsername(),
+                            user.getUsername(),
                             authDTO.getPassword()
                     )
             );
-            System.out.println("Authentication successful for: " + authDTO.getUsername());
-            
-            User user = userService.findByUsername(authDTO.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-            
+            System.out.println("Authentication successful for: " + user.getUsername());
+
             String token = jwtUtil.generateToken(user.getUsername());
-            
+
             AuthDTO response = new AuthDTO();
             response.setUsername(user.getUsername());
             response.setEmail(user.getEmail());
@@ -111,29 +120,29 @@ public class AuthController {
             response.setToken(token);
             response.setUserId(user.getId());
             response.setRole(user.getRole());
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             System.out.println("LOGIN FAILED: " + e.getClass().getName() + " - " + e.getMessage());
             e.printStackTrace();
             Map<String, String> error = new HashMap<>();
-            error.put("error", "Invalid username or password");
+            error.put("error", "Invalid credentials");
             return ResponseEntity.status(401).body(error);
         }
     }
     
     @PostMapping("/change-password")
     public ResponseEntity<Map<String, String>> changePassword(@RequestBody Map<String, String> request) {
-        String email = request.get("email");
+        String identifier = request.get("identifier");
         String currentPassword = request.get("currentPassword");
         String newPassword = request.get("newPassword");
 
-        if (email == null || currentPassword == null || newPassword == null) {
+        if (identifier == null || currentPassword == null || newPassword == null) {
             return ResponseEntity.badRequest().build();
         }
 
         try {
-            userService.changePassword(email, currentPassword, newPassword);
+            userService.changePassword(identifier, currentPassword, newPassword);
             Map<String, String> response = new HashMap<>();
             response.put("message", "Password changed successfully");
             return ResponseEntity.ok(response);
