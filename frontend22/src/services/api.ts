@@ -498,11 +498,37 @@ class ApiService {
     return this.request<UserPredictionSummary[]>('/api/predictions/all-users-predictions');
   }
 
-  async getPredictionsByDate(date: string): Promise<UserPredictionSummary[]> {
-    return this.request<UserPredictionSummary[]>(`/api/predictions/predictions-by-date?date=${date}`);
-  }
+    async getPredictionsByDate(date: string): Promise<UserPredictionSummary[]> {
+        return this.request<UserPredictionSummary[]>(`/api/predictions/predictions-by-date?date=${date}`);
+    }
 
-  async deleteAllPredictions(matchId: number): Promise<void> {
+    async exportUsersToCsv(): Promise<string> {
+        return this.request<string>('/api/admin/export-users-csv', {
+            method: 'GET',
+            headers: {
+                'Accept': 'text/plain'
+            }
+        });
+    }
+
+    async importUsersFromCsv(file: File): Promise<any> {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        const url = `${API_BASE_URL}/api/admin/import-users-csv`;
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: this.getAuthHeaders(),
+            body: formData,
+        });
+
+        if (!response.ok) {
+            throw new Error(`Import Error: ${response.status} ${response.statusText}`);
+        }
+        return response.json();
+    }
+
+    async deleteAllPredictions(matchId: number): Promise<void> {
     return this.request<void>(`/api/predictions/delete/${matchId}`, {
       method: 'POST',
     });

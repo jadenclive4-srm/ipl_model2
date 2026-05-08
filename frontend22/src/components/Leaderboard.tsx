@@ -1,6 +1,6 @@
 // frontend22/src/components/Leaderboard.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiService } from '../services/api';
 import { User } from '../types/api';
@@ -16,15 +16,17 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-   const [sendingToTeams, setSendingToTeams] = useState(false);
-   const [teamsMessage, setTeamsMessage] = useState<{ success: boolean; message: string } | null>(null);
-   const [deepLink, setDeepLink] = useState<string | null>(null);
-   const [openingTeams, setOpeningTeams] = useState(false);
-   const [copied, setCopied] = useState(false);
-   const [teamsGroupChatLink, setTeamsGroupChatLink] = useState<string>(
-     localStorage.getItem('teamsGroupChatLink') || ''
-   );
-   const [showLinkInput, setShowLinkInput] = useState(false);
+  const [sendingToTeams, setSendingToTeams] = useState(false);
+  const [teamsMessage, setTeamsMessage] = useState<{ success: boolean; message: string } | null>(null);
+  const [deepLink, setDeepLink] = useState<string | null>(null);
+  const [openingTeams, setOpeningTeams] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [teamsGroupChatLink, setTeamsGroupChatLink] = useState<string>(
+    localStorage.getItem('teamsGroupChatLink') || ''
+  );
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollPosition = useRef<number>(0);
   
   // Teams selection state
   const [teamsMode, setTeamsMode] = useState<TeamsMode>('webhook');
@@ -33,6 +35,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
   const [selectedTarget, setSelectedTarget] = useState<string>('default');
   const [showModeDropdown, setShowModeDropdown] = useState(false);
   const [showTargetDropdown, setShowTargetDropdown] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     loadLeaderboard();
@@ -49,6 +52,7 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
   }, [isAdmin]);
 
   const loadLeaderboard = async () => {
+    scrollPosition.current = window.scrollY;
     try {
       setLoading(true);
       const data = await apiService.getLeaderboard();
@@ -57,6 +61,10 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
       setError(error instanceof Error ? error.message : 'Failed to load leaderboard');
     } finally {
       setLoading(false);
+      // Restore scroll position after DOM updates
+      setTimeout(() => {
+        window.scrollTo(0, scrollPosition.current);
+      }, 100);
     }
   };
 
@@ -243,7 +251,13 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
     return `Send top 5 to ${teamsMode === 'webhook' ? selectedTarget + ' channel' : selectedTarget + ' group chat'}`;
   };
 
-  if (loading) {
+  const filteredUsers = searchQuery
+    ? users.filter(user =>
+        (user.fullName || user.username).toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : users;
+
+  if (loading && users.length === 0) {
     return (
       <div className="flex items-center justify-center py-8">
         <div className="text-lg text-spotify-textSecondary">Loading leaderboard...</div>
@@ -268,6 +282,15 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
             <p className="mt-1 max-w-2xl text-sm text-spotify-textSecondary">
               Top performers in IPL predictions
             </p>
+            <div className="mt-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search users by name..."
+                className="px-3 py-2 border border-spotify-surfaceLight bg-spotify-surface text-sm font-medium rounded-md text-spotify-text placeholder-spotify-textMuted focus:outline-none focus:ring-2 focus:ring-spotify-green w-full max-w-xs"
+              />
+            </div>
           </div>
           
            {isAdmin && (
@@ -514,8 +537,13 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
            </div>
          )}
       </div>
-      <ul className="divide-y divide-spotify-surfaceLight">
-        {users.map((user, index) => (
+      {searchQuery && filteredUsers.length === 0 ? (
+        <div className="px-4 py-4 text-center text-spotify-textSecondary">
+          No users found matching "{searchQuery}"
+        </div>
+      ) : (
+        <ul className="divide-y divide-spotify-surfaceLight">
+          {filteredUsers.map((user, index) => (
           <li key={user.id} className={`px-4 py-4 sm:px-6 hover:bg-spotify-surfaceLight transition-colors border-b border-spotify-surfaceLight last:border-b-0 ${
             currentUser && user.id === currentUser.id
               ? 'bg-gradient-to-r from-spotify-green/20 to-spotify-green/10 border-2 border-spotify-green/50 shadow-md ring-1 ring-spotify-green/20'
@@ -525,12 +553,12 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
               <div className="flex items-center">
                 <div className="flex-shrink-0">
                   <span className={`inline-flex items-center justify-center h-8 w-8 rounded-full text-sm font-medium ${
-                    index === 0 ? 'bg-yellow-500 text-black' :
-                    index === 1 ? 'bg-gray-400 text-black' :
-                    index === 2 ? 'bg-orange-500 text-black' :
+                    user.rank === 1 ? 'bg-yellow-500 text-black' :
+                    user.rank === 2 ? 'bg-gray-400 text-black' :
+                    user.rank === 3 ? 'bg-orange-500 text-black' :
                     'bg-spotify-surfaceLight text-spotify-text'
                   }`}>
-                    #{index + 1}
+                    #{user.rank}
                   </span>
                 </div>
                 <div className="ml-4">
@@ -565,7 +593,8 @@ const Leaderboard: React.FC<LeaderboardProps> = ({ isAdmin = false }) => {
             </div>
           </li>
         ))}
-      </ul>
+        </ul>
+      )}
     </div>
   );
 };

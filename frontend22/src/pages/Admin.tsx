@@ -36,6 +36,9 @@ const Admin: React.FC = () => {
     newPassword: '',
     confirmPassword: ''
   });
+
+  // CSV import state
+  const [importFile, setImportFile] = useState<File | null>(null);
   
   const getDefaultQuestionsForMatch = (match: Match): Question[] => {
     return [
@@ -508,6 +511,55 @@ const Admin: React.FC = () => {
     }
   };
 
+  const handleExportUsersCsv = async () => {
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      const csvContent = await apiService.exportUsersToCsv();
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'users.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      setImportStatus('Users exported to CSV successfully');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to export users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImportUsersCsv = async () => {
+    if (!importFile) {
+      setError('Please select a CSV file to import');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+    setImportStatus('');
+
+    try {
+      const result = await apiService.importUsersFromCsv(importFile);
+      setImportStatus(`Import completed: ${result.successCount} users created, ${result.errorCount} errors`);
+      if (result.errors && result.errors.length > 0) {
+        setError('Import errors: ' + result.errors.join('; '));
+      }
+      setImportFile(null);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Failed to import users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow">
@@ -834,6 +886,40 @@ const Admin: React.FC = () => {
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
               User Management
             </h3>
+
+            {/* CSV Export/Import Tools */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+              <h4 className="text-md font-medium text-gray-900 mb-2">CSV Tools</h4>
+              <div className="flex gap-4">
+                <button
+                  onClick={handleExportUsersCsv}
+                  disabled={loading}
+                  className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {loading ? 'Exporting...' : 'Export Users to CSV'}
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    disabled={loading}
+                    className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                  />
+                  <button
+                    onClick={handleImportUsersCsv}
+                    disabled={loading || !importFile}
+                    className="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                  >
+                    {loading ? 'Importing...' : 'Import Users from CSV'}
+                  </button>
+                </div>
+              </div>
+              <p className="mt-2 text-sm text-gray-600">
+                CSV format: username,email,fullName,role (password will be set to "user123" for all imported users)
+              </p>
+            </div>
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

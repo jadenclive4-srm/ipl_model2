@@ -496,6 +496,14 @@ public class UserService implements UserDetailsService {
     public List<User> getAllUsers() {
         return userRepository.findAll();
     }
+
+    public List<UserMongo> getAllUsersFromMongo() {
+        try {
+            return userMongoRepository.findAll();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to fetch users from MongoDB: " + e.getMessage());
+        }
+    }
     
     @Transactional
     public User updateUser(Long userId, String fullName, String email) {

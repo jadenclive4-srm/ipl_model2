@@ -31,6 +31,15 @@ public class UserController {
         this.passwordEncoder = passwordEncoder;
     }
     
+    @GetMapping
+    public ResponseEntity<List<UserDTO>> getAllUsers() {
+        List<User> users = userService.getAllUsers();
+        List<UserDTO> userDTOs = users.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(userDTOs);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<UserDTO> getUserById(@PathVariable Long id) {
         return userService.findById(id)
