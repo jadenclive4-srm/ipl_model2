@@ -172,23 +172,23 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {todayMatches.length > 0 && (
-                    <div className="mb-8">
-                      <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Today's Matches</h2>
-                      <div className="px-4 sm:px-0 grid gap-6 md:grid-cols-2 lg:grid-cols-2 justify-items-center max-w-4xl mx-auto">
-                        {todayMatches.map((match) => (
-                          <div key={match.id} className="w-full max-w-md">
-                            <MatchCard
-                              match={match}
-                              userPrediction={getUserPredictionForMatch(match.id)}
-                              onPredictClick={() => navigate(`/predict/${match.id}`)}
-                              isLarge={true}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                   {todayMatches.length > 0 && (
+                     <div className="mb-8">
+                       <h2 className="text-2xl font-bold text-spotify-text mb-4 text-center sm:text-left">Today's Matches</h2>
+                       <div className={`px-4 sm:px-0 gap-6 max-w-4xl mx-auto ${todayMatches.length === 1 ? 'flex justify-center' : 'grid md:grid-cols-2 lg:grid-cols-2 justify-items-center'}`}>
+                         {todayMatches.map((match) => (
+                           <div key={match.id} className="w-full max-w-md">
+                             <MatchCard
+                               match={match}
+                               userPrediction={getUserPredictionForMatch(match.id)}
+                               onPredictClick={() => navigate(`/predict/${match.id}`)}
+                               isLarge={true}
+                             />
+                           </div>
+                         ))}
+                       </div>
+                     </div>
+                   )}
 
                   {upcomingMatches.length > 0 && (
                     <div className="mb-8">
